@@ -254,6 +254,19 @@
   REAL(KIND = DP) :: temps(50)
   !! input temperature array (units of Kelvin)
   !
+  ! added by YZ for relaxation calculation
+  integer :: nomega     ! no. of steps used to calculated ph dos 
+  LOGICAL :: relax_bte  ! switch of relaxation dynamics,  default false
+  LOGICAL :: rlx_approx ! relaxtation time approximation, default false
+  REAL (KIND=DP) :: omega_max! maximal phonon energy
+  REAL (KIND=DP) :: Ephoton  ! Photon energy
+  REAL (KIND=DP) :: Epump    ! pump energy
+  REAL (KIND=DP) :: mobility ! electron mobility
+  REAL (KIND=DP) :: Th_cond  ! thermal conductivity
+  REAL (KIND=DP) :: alpha_heat  ! 0 or 1 !update temperature or not
+  REAL (KIND=DP) :: rlx_tmax ! maximum relaxation time,   default 1000 (fs)
+  REAL (KIND=DP) :: rlx_dt   ! time step,   default 0.05 (fs)
+  !
   ! Superconductivity
   INTEGER :: nswi
   !! nr. of grid points for Eliashberg equations of imaginary axis

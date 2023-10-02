@@ -165,6 +165,21 @@
     epstf_therm(:),          &!  Thermal thomas fermi dielectric function
     qtf2_therm(:),           &!  Thermal thomas fermi wavevector
     partion(:)                !  fraction of impurities ionized
+    !*****************************************!
+    ! ZY modification  
+    homega_all(:,:,:),      &!  !energy and k-point resolved e-ph coupling, Ref, xxx, ZY
+    homega_all2(:,:,:),     &!  !energy and k-point resolved e-ph coupling, Ref, xxx, ZY
+    hijomega(:,:,:,:),       &!  !energy and k-point resolved e-ph coupling, (:,:,e,w)
+    edosef,                 &!  ! DOS of electron at fermi energy
+    edos_all(:),            &!  ! DOS of electron
+    jdos(:,:),              &!  ! joint DOS of electron
+    vdos_all(:),            &!  ! DOS of phonon
+    he_all(:),              &!  ! energy resolved e-ph coupling, Ref. xxx, ZY
+    he_ij(:,:),             &!  ! energy resolved e-ph coupling, Ref. xxx, ZY
+    he_all2(:),             &!  ! energy resolved e-ph coupling, Ref. xxx, ZY
+    epsilon1_abs(:,:,:),    &!  Imaginary part of dielectric function for direct absorption, vs omega, vs broadening 
+    epsilon1_abs_lorenz(:,:,:),&! Imaginary part of dielectric function for direct absorption, vs omega, vs broadening
+    !*****************************************!
     !!!!!
   COMPLEX(KIND = DP), ALLOCATABLE :: &
     el_ph_mat(:, :, :, :),    &!  e-p matrix  (nbnd, nbnd, nks, 3*nat)

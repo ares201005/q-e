@@ -40,11 +40,16 @@
     USE epwcom,        ONLY : nbndsub, eps_acustic, fsthick, ngaussw, &
                               degaussw, wmin_specfun, wmax_specfun, nw_specfun, &
                               shortrange, efermi_read, fermi_energy, restart, &
-                              restart_step, nstemp
+                              restart_step, nstemp, &
+                              Ephoton, nomega, omega_max !YZ
     USE pwcom,         ONLY : ef
     USE elph2,         ONLY : gtemp, etf, ibndmin, ibndmax, nkqf, xqf, nktotf, efnew, &
                               epf17, wkf, nkf, wf, wqf, xkf, nkqtotf, adapt_smearing, &
-                              esigmar_all, esigmai_all, a_all, nbndfst, lower_bnd
+                              esigmar_all, esigmai_all, a_all, nbndfst, lower_bnd, &
+                              !************YZ*****************
+                              he_all, he_all2, he_ij,homega_all, homega_all2, & 
+                              hijomega, edosef,jdos,edos_all, vdos_all
+                              !************YZ*****************
     USE constants_epw, ONLY : kelvin2eV, ryd2mev, one, ryd2ev, two, zero, ci, eps8
     USE constants,     ONLY : pi
     USE mp,            ONLY : mp_barrier, mp_sum

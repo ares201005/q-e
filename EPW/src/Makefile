@@ -57,6 +57,9 @@ bcast_epw_input.o \
 bloch2wan.o \
 dvqpsi.o \
 eliashberg.o \
+w90_plasmon.o \
+relax_elec.o \
+fit.o \
 elphel2_shuffle.o \
 elphon_shuffle.o \
 elphon_shuffle_wrap.o \
