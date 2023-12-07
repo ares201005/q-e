@@ -159,12 +159,6 @@
     inv_tau_b(:, :, :),      &!  In case of B-field, scattering rate for non-zero inv_tau k-points on full BZ
     df_in_b(:, :, :, :, :),  &!  In case of B-field, derivative of f wrt k for non-zero inv_tau k-points on full BZ
     xkf_bz(:, :),            &!  In case of B-field, homogeneous k-point list on the full BZ for etf_mem /= 3
-    !!!!!
-    !Qmat(:, :, :, :)         !  Quadrupole tensor 
-    Qmat(:, :, :, :),        &!  Quadrupole tensor
-    epstf_therm(:),          &!  Thermal thomas fermi dielectric function
-    qtf2_therm(:),           &!  Thermal thomas fermi wavevector
-    partion(:)                !  fraction of impurities ionized
     !*****************************************!
     ! ZY modification  
     homega_all(:,:,:),      &!  !energy and k-point resolved e-ph coupling, Ref, xxx, ZY
@@ -172,7 +166,6 @@
     hijomega(:,:,:,:),       &!  !energy and k-point resolved e-ph coupling, (:,:,e,w)
     edosef,                 &!  ! DOS of electron at fermi energy
     edos_all(:),            &!  ! DOS of electron
-    jdos(:,:),              &!  ! joint DOS of electron
     vdos_all(:),            &!  ! DOS of phonon
     he_all(:),              &!  ! energy resolved e-ph coupling, Ref. xxx, ZY
     he_ij(:,:),             &!  ! energy resolved e-ph coupling, Ref. xxx, ZY
@@ -180,6 +173,12 @@
     epsilon1_abs(:,:,:),    &!  Imaginary part of dielectric function for direct absorption, vs omega, vs broadening 
     epsilon1_abs_lorenz(:,:,:),&! Imaginary part of dielectric function for direct absorption, vs omega, vs broadening
     !*****************************************!
+    !!!!!
+    !Qmat(:, :, :, :)         !  Quadrupole tensor 
+    Qmat(:, :, :, :),        &!  Quadrupole tensor
+    epstf_therm(:),          &!  Thermal thomas fermi dielectric function
+    qtf2_therm(:),           &!  Thermal thomas fermi wavevector
+    partion(:)               !  fraction of impurities ionized
     !!!!!
   COMPLEX(KIND = DP), ALLOCATABLE :: &
     el_ph_mat(:, :, :, :),    &!  e-p matrix  (nbnd, nbnd, nks, 3*nat)
