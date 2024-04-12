@@ -26,7 +26,7 @@ SUBROUTINE wfcinit()
   USE buffers,              ONLY : open_buffer, close_buffer, get_buffer, save_buffer
   USE uspp,                 ONLY : nkb, vkb
   USE wavefunctions,        ONLY : evc
-  USE wvfct,                ONLY : nbnd, current_k
+  USE wvfct,                ONLY : nbnd, current_k, et
   USE wannier_new,          ONLY : use_wannier
   USE pw_restart_new,       ONLY : read_collected_wfc
   USE mp,                   ONLY : mp_bcast, mp_sum
@@ -202,6 +202,7 @@ SUBROUTINE wfcinit()
      !
   END DO
   !
+  !$acc update self(et)
   CALL stop_clock( 'wfcinit' )
   RETURN
   !
@@ -216,6 +217,7 @@ SUBROUTINE init_wfc ( ik )
   USE kinds,                ONLY : DP
   USE bp,                   ONLY : lelfield
   USE becmod,               ONLY : allocate_bec_type, deallocate_bec_type, &
+                                   allocate_bec_type_acc, deallocate_bec_type_acc, &
                                    bec_type, becp
   USE constants,            ONLY : tpi
   USE basis,                ONLY : natomwfc, starting_wfc
@@ -226,7 +228,7 @@ SUBROUTINE init_wfc ( ik )
   USE noncollin_module,     ONLY : npol
   USE wavefunctions,        ONLY : evc
 #if defined(__CUDA)
-  USE random_numbers_gpum,  ONLY : randy_vect_gpu => randy_vect_debug_gpu
+  USE random_numbers_gpum,  ONLY : randy_vect_gpu ! => randy_vect_debug_gpu
                                                   ! use '=>randy_vect_debug_gpu'
                                                   ! to adopt the same (slower) PRNG
                                                   ! used on the CPU.
@@ -239,8 +241,6 @@ SUBROUTINE init_wfc ( ik )
   USE xc_lib,               ONLY : xclib_dft_is, stop_exx
   !
   USE wavefunctions_gpum,   ONLY : using_evc, using_evc_d, evc_d
-  USE wvfct_gpum,           ONLY : using_et, using_et_d, et_d
-  USE becmod_subs_gpum,     ONLY : using_becp_auto, using_becp_d_auto
   USE control_flags,        ONLY : lscf, use_gpu
   !
   IMPLICIT NONE
@@ -256,7 +256,8 @@ SUBROUTINE init_wfc ( ik )
   !$acc declare device_resident(etatom)
   !
   COMPLEX(DP), ALLOCATABLE :: wfcatom(:,:,:) ! atomic wfcs for initialization
-  !$acc declare device_resident(wfcatom)
+  ! should be declared "device_resident(wfcatom)" but gives problems inside
+  ! "atomic_wfc" for spin-orbit case and openmp compilation - not sure why
   !
 #if defined(__CUDA)
   REAL(DP),    ALLOCATABLE :: randy_vec(:) ! data for random
@@ -286,6 +287,7 @@ SUBROUTINE init_wfc ( ik )
   xk_1 = xk(1,ik); xk_2 = xk(2,ik); xk_3 = xk(3,ik)
   !
   ALLOCATE( wfcatom( npwx, npol, n_starting_wfc ) )
+  !$acc data create(wfcatom)
 #if defined(__CUDA)
   ALLOCATE(randy_vec(2 * n_starting_wfc * npol * ngk_ik))
 #endif
@@ -293,13 +295,7 @@ SUBROUTINE init_wfc ( ik )
   IF ( n_starting_atomic_wfc > 0 ) THEN
      !
      CALL start_clock( 'wfcinit:atomic' ); !write(*,*) 'start wfcinit:atomic' ; FLUSH(6)
-     IF(use_gpu) THEN
-       !$acc host_data use_device(wfcatom)
-       CALL atomic_wfc_gpu( ik, wfcatom )
-       !$acc end host_data
-     ELSE
-       CALL atomic_wfc( ik, wfcatom )
-     END IF
+     CALL atomic_wfc( ik, wfcatom )
      CALL stop_clock( 'wfcinit:atomic' ); !write(*,*) 'stop wfcinit:atomic' ; FLUSH(6)
      !
      IF ( starting_wfc == 'atomic+random' .AND. &
@@ -407,15 +403,7 @@ SUBROUTINE init_wfc ( ik )
   !
   ! ... Allocate space for <beta|psi>
   !
-!civn: becp_d to be removed as soon as calbec is fixed
-  IF(use_gpu) THEN
-    CALL using_becp_auto (2)
-    CALL allocate_bec_type ( nkb, n_starting_wfc, becp, intra_bgrp_comm )
-    CALL using_becp_d_auto (2)
-  ELSE
-    CALL allocate_bec_type ( nkb, n_starting_wfc, becp, intra_bgrp_comm )
-    CALL using_becp_auto (2)
-  END IF 
+  CALL allocate_bec_type_acc ( nkb, n_starting_wfc, becp, intra_bgrp_comm )
   !
   ! ... the following trick is for electric fields with Berry's phase:
   ! ... by setting lelfield = .false. one prevents the calculation of
@@ -445,28 +433,14 @@ SUBROUTINE init_wfc ( ik )
   ! ... copy the first nbnd eigenvalues
   ! ... eigenvectors are already copied inside routine rotate_wfc
   !
-  if(use_gpu) then 
-    CALL using_et_d(2)
-    !$acc kernels  
-    DO ibnd=1,nbnd
-       et_d(ibnd,ik) = etatom(ibnd)
-    END DO
-    !$acc end kernels
-  else
-    CALL using_et(1)
-    et(1:nbnd,ik) = etatom(1:nbnd)
-  end if 
+  !$acc kernels  
+  et(1:nbnd,ik) = etatom(1:nbnd)
+  !$acc end kernels
   !
-  if(use_gpu) then 
-    CALL using_becp_auto (2)
-    CALL deallocate_bec_type ( becp )
-    CALL using_becp_d_auto (2)
-  else
-    CALL deallocate_bec_type ( becp )
-    CALL using_becp_auto (2)
-  end if
+  CALL deallocate_bec_type_acc ( becp )
   !
   DEALLOCATE( etatom )
+  !$acc end data
   DEALLOCATE( wfcatom )
   !
   RETURN

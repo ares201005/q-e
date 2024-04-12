@@ -17,9 +17,10 @@ SUBROUTINE matcalc_gpu( label, DoE, PrtMat, ninner, n, m, U, V, mat, ee )
   !
   USE kinds,                ONLY : DP
   USE io_global,            ONLY : stdout
-  USE wvfct,                ONLY : current_k
-  USE wvfct_gpum,           ONLY : using_wg_d,wg_d
-  USE becmod_subs_gpum,     ONLY : calbec_gpu
+  USE wvfct,                ONLY : current_k, wg
+  USE gvect,                ONLY : gstart
+  USE mp,                   ONLY : mp_sum
+  USE mp_bands,             ONLY : intra_bgrp_comm
   !
   IMPLICIT NONE
   !
@@ -56,18 +57,19 @@ SUBROUTINE matcalc_gpu( label, DoE, PrtMat, ninner, n, m, U, V, mat, ee )
 
   string = 'M-'
   mat = 0.0_dp
-  CALL calbec_gpu(ninner, U, V, mat, m)
+  CALL MYDGEMM( 'C', 'N', n, m, 2*ninner, 2.0_DP, U, 2*ninner, V, 2*ninner, 0.0_DP, mat, n )
+  IF ( gstart == 2 ) CALL MYDGER( n, m, -1.0_DP, U, 2*ninner, V, 2*ninner, mat, n )
+  CALL mp_sum( mat( :, 1:m ), intra_bgrp_comm )
 
   IF( PrtMat > 1 ) CALL errore('matcalc_gpu', 'cannot print matrix', 1)
 
   IF(DoE) THEN
-     CALL using_wg_d(0)
      IF(n/=m) CALL errore('matcalc','no trace for rectangular matrix.',1)
      string = 'E-'
      ee = 0.0_dp
-     !$cuf kernel do (1)
+     !$acc parallel loop reduction(+:ee) copyin(wg)
      DO i = 1,n
-        ee = ee + wg_d(i,current_k)*mat(i,i)
+        ee = ee + wg(i,current_k)*mat(i,i)
      ENDDO
      IF ( PrtMat > 0 ) WRITE(stdout,'(A,f16.8,A)') string//label, ee, ' Ry'
   ENDIF
@@ -83,9 +85,9 @@ SUBROUTINE matcalc_k_gpu (label, DoE, PrtMat, ik, ninner, n, m, U, V, mat, ee)
   USE kinds,                ONLY : dp
   USE io_global,ONLY : stdout
   USE wvfct,                ONLY : wg, npwx
-  USE wvfct_gpum,           ONLY : using_wg_d,wg_d
-  USE becmod_subs_gpum,     ONLY : calbec_gpu
   USE noncollin_module,     ONLY : noncolin, npol
+  USE mp,                   ONLY : mp_sum
+  USE mp_bands,             ONLY : intra_bgrp_comm
   IMPLICIT NONE
   !
   ! compute the (n,n) matrix representation <U|V>
@@ -107,24 +109,18 @@ SUBROUTINE matcalc_k_gpu (label, DoE, PrtMat, ik, ninner, n, m, U, V, mat, ee)
 
   string = 'M-'
   mat = (0.0_dp, 0.0_dp)
-  IF(noncolin) THEN
-    noncolin = .false.
-    CALL calbec_gpu(ninner, U, V, mat, m)
-    noncolin = .true.
-  ELSE
-    CALL calbec_gpu(ninner, U, V, mat, m)
-  ENDIF
+  CALL MYZGEMM( 'C', 'N', n, m, ninner, (1.0_DP,0.0_DP), U, ninner, V, ninner, (0.0_DP,0.0_DP), mat, n )
+  CALL mp_sum( mat( :, 1:m ), intra_bgrp_comm )
 
   IF( PrtMat > 1 ) CALL errore('matcalc_k_gpu', 'cannot print matrix', 1)
 
   IF(DoE) THEN
-    CALL using_wg_d(0)
     IF(n/=m) CALL errore('matcalc','no trace for rectangular matrix.',1)
     string = 'E-'
     ee = 0.0_dp
-    !$cuf kernel do (1)
+    !$acc parallel loop reduction(+:ee) copyin(wg)
     DO i = 1,n
-      ee = ee + wg_d(i,ik)*DBLE(mat(i,i))
+      ee = ee + wg(i,ik)*DBLE(mat(i,i))
     ENDDO
     IF ( PrtMat > 0 ) WRITE(stdout,'(A,f16.8,A)') string//label, ee, ' Ry'
   ENDIF

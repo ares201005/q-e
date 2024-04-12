@@ -1,5 +1,6 @@
 set(src_modules
     additional_kpoints.f90 
+    atomic_wfc_mod.f90
     autopilot.f90 
     basic_algebra_routines.f90 
     becmod.f90 
@@ -52,6 +53,7 @@ set(src_modules
     plugin_flags.f90 
     plugin_arguments.f90 
     plugin_variables.f90 
+    printout_base.f90
     pw_dot.f90 
     qmmm.f90 
     random_numbers.f90 
@@ -201,8 +203,6 @@ set(src_modules
     deviatoric.f90
     # GPU
     wavefunctions_gpu.f90
-    becmod_gpu.f90
-    becmod_subs_gpu.f90
     random_numbers_gpu.f90
     cuda_subroutines.f90)
 qe_enable_cuda_fortran("${src_modules}")
@@ -212,8 +212,7 @@ qe_add_library(qe_modules ${src_modules})
 set(src_modules_c
     customize_signals.c
     qmmm_aux.c
-    sockets.c
-    stack.c)
+    sockets.c)
 qe_add_library(qe_modules_c ${src_modules_c})
 
 if(TARGET gitrev)
@@ -224,6 +223,7 @@ endif()
 
 target_link_libraries(qe_modules
     PRIVATE
+        qe_device_lapack  
         qe_modules_c
         qe_openmp_fortran
         qe_fftx

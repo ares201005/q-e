@@ -26,7 +26,7 @@ SUBROUTINE from_restart( )
    USE ions_positions,        ONLY : taus, tau0, tausm, taum, vels, fion, fionm, set_velocities, velsm
    USE ions_nose,             ONLY : xnhp0, xnhpm, tempw
    USE gvect,    ONLY : mill, eigts1, eigts2, eigts3 
-   USE printout_base,         ONLY : printout_pos
+   !USE printout_base,         ONLY : printout_pos
    USE gvecw,                 ONLY : ngw
    USE cp_interfaces,         ONLY : phfacs, strucf, prefor, calbec, caldbec_bgrp
    USE energies,              ONLY : eself, dft_energy_type
@@ -82,10 +82,10 @@ SUBROUTINE from_restart( )
        WRITE (stdout,*) '      the changing of timestep is performed automatically when the input timestep is'
        WRITE (stdout,*) '      different from the one read from the xml file and no changing timestep input variable'
        WRITE (stdout,*) '      is specified (tolp, ion_velocities and electron_velocities = change_step )'
-       IF (abs(dt_old - dt_xml_old) > 1.0d-6) THEN
+       IF (dt_xml_old > 0.0_dp .AND. abs(dt_old - dt_xml_old) > 1.0d-6) THEN
            CALL errore (' from_restart ', ' input tolp and old dt written in the xml file are different ', 1)
        ENDIF
-   ELSE IF ( abs(dt_xml_old - delt) > 1.0d-6 ) THEN
+   ELSE IF (dt_xml_old > 0.0_dp .AND. abs(dt_xml_old - delt) > 1.0d-6 ) THEN
        dt_old = dt_xml_old
        trescalee = .true.
        WRITE (stdout,*) 'NOTE: the new behavior is to automatically perform a change of timestep when the old'

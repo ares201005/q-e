@@ -278,6 +278,7 @@ SUBROUTINE upf_bcast(upf, ionode, ionode_id, comm)
   !! ID of the processor that broadcasts
   INTEGER, INTENT(in) :: comm
   !! MPI communicator
+  INTEGER :: nbeta
   !
   CALL mp_bcast (upf%nv, ionode_id, comm )
   CALL mp_bcast (upf%generated, ionode_id, comm )
@@ -297,6 +298,7 @@ SUBROUTINE upf_bcast(upf, ionode, ionode_id, comm)
   CALL mp_bcast (upf%has_gipaw, ionode_id, comm )
   CALL mp_bcast (upf%paw_as_gipaw, ionode_id, comm )
   CALL mp_bcast (upf%nlcc, ionode_id, comm )
+  CALL mp_bcast (upf%with_metagga_info, ionode_id, comm )
   CALL mp_bcast (upf%dft, ionode_id, comm )
   CALL mp_bcast (upf%zp, ionode_id, comm )
   CALL mp_bcast (upf%etotps, ionode_id, comm )
@@ -329,26 +331,21 @@ SUBROUTINE upf_bcast(upf, ionode, ionode_id, comm)
   ENDIF
   !
   IF ( .not. ionode) THEN
+     ! next instructions prevents trouble in following broadcasts
+     nbeta = MAX (1, upf%nbeta)
+     ALLOCATE( upf%kbeta(nbeta),     &
+               upf%lll(nbeta),            &
+               upf%beta(upf%mesh, nbeta), &
+               upf%dion(nbeta, nbeta),    &
+               upf%rcut(nbeta),           &
+               upf%rcutus(nbeta),         &
+               upf%els_beta(nbeta) )
+     ! not sure next instructions are needed
      IF ( upf%nbeta == 0) THEN
         upf%nqf = 0
         upf%nqlc= 0
         upf%qqq_eps= -1._dp
         upf%kkbeta = 0  
-        ALLOCATE( upf%kbeta(1),     &
-             upf%lll(1),           &
-             upf%beta(upf%mesh,1), &
-             upf%dion(1,1),        &
-             upf%rcut(1),          &
-             upf%rcutus(1),        &
-             upf%els_beta(1) )
-     ELSE
-        ALLOCATE( upf%kbeta(upf%nbeta),     &
-             upf%lll(upf%nbeta),            &
-             upf%beta(upf%mesh, upf%nbeta), &
-             upf%dion(upf%nbeta, upf%nbeta),&
-             upf%rcut(upf%nbeta),           &
-             upf%rcutus(upf%nbeta),         &
-             upf%els_beta(upf%nbeta) )
      END IF
   END IF
   !
@@ -447,7 +444,14 @@ SUBROUTINE upf_bcast(upf, ionode, ionode_id, comm)
   !
   IF ( .not. ionode) ALLOCATE( upf%rho_at(upf%mesh) )
   CALL mp_bcast (upf%rho_at,ionode_id,comm )
-  
+  !
+  IF ( upf%with_metagga_info ) THEN
+     IF ( .not. ionode) ALLOCATE( upf%tau_core(upf%mesh) )
+     CALL mp_bcast (upf%tau_core,ionode_id,comm )
+     IF ( .not. ionode) ALLOCATE( upf%tau_atom(upf%mesh) )
+     CALL mp_bcast (upf%tau_atom,ionode_id,comm )
+  END IF
+  !  
   IF (upf%has_so) THEN
      IF ( .NOT. ionode) THEN
         ALLOCATE (upf%jchi(upf%nwfc))

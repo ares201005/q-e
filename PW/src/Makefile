@@ -195,6 +195,7 @@ ruotaijk.o \
 run_pwscf.o \
 s_1psi.o \
 s_psi.o \
+s_psi_acc.o \
 save_in_cbands.o \
 save_in_electrons.o \
 scale_h.o \
@@ -234,7 +235,6 @@ symmetrize_at.o \
 tetra.o \
 transform_becsum_so.o \
 transform_becsum_nc.o \
-transform_qq_so.o \
 trnvecc.o \
 two_chem.o\
 update_pot.o \
@@ -267,7 +267,8 @@ oscdft_functions.o \
 oscdft_occupations.o \
 oscdft_wfcO.o \
 oscdft_forces.o \
-oscdft_forces_subs.o
+oscdft_forces_subs.o \
+d3hess_mod.o
 
 
 # GPU versions of routines
@@ -276,9 +277,7 @@ PWLIBS += \
   g_psi_gpu.o \
   h_psi_gpu.o \
   vhpsi_gpu.o \
-  s_psi_gpu.o \
   vloc_psi_gpu.o \
-  pwcom_gpu.o \
   scf_mod_gpu.o \
   usnldiag_gpu.o \
   add_vuspsi_gpu.o \
@@ -291,11 +290,7 @@ PWLIBS += \
   hs_psi_gpu.o \
   s_1psi_gpu.o \
   utils_gpu.o \
-  atomic_wfc_gpu.o \
-  oscdft_wavefunction_subs_gpu.o \
-  oscdft_wfcO_gpu.o \
-  oscdft_functions_gpu.o \
-  additional_cusolver_subs.o
+  oscdft_functions_gpu.o
 
 
 
