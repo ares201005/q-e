@@ -143,7 +143,7 @@ SUBROUTINE elphon()
         allocate( phip(3,3,nat,nat) )
         CALL read_dyn_mat_param(fildyn, ntyp_, nat_)
         IF ( ntyp_ /= ntyp .OR. nat_ /= nat ) &
-           CALL errore('elphon','uncorrect nat or ntyp',1)
+           CALL errore('elphon','incorrect nat or ntyp',1)
           
         CALL read_dyn_mat_header(ntyp, nat, ibrav_, nspin_mag_, &
                  celldm_, at, bg, omega, atm, amass, tau, ityp, &
@@ -464,9 +464,12 @@ SUBROUTINE elphel (irr, npe, imode0, dvscfins)
         IF (nksq.GT.1 .OR. nsolv==2) THEN
            IF (lgamma) THEN
               CALL get_buffer(evc, lrwfc, iuwfc, ikmk)
+              !$acc update device(evc)
            ELSE
               CALL get_buffer (evc, lrwfc, iuwfc, ikmk)
+              !$acc update device(evc)
               CALL get_buffer (evq, lrwfc, iuwfc, ikmq)
+              !$acc update device(evq)
            ENDIF
         ENDIF
         !
@@ -802,7 +805,7 @@ SUBROUTINE elphsum ( )
 
   elph_dir='elph_dir/'
   CALL create_directory( elph_dir )
-  WRITE (6, '(5x,"electron-phonon interaction  ..."/)')
+  WRITE (6, '(5x,"Electron-phonon interaction  ..."/)')
   ngauss1 = 0
 
   ALLOCATE(xk_collect(3,nkstot))
@@ -1418,7 +1421,10 @@ SUBROUTINE elph_prt()
   !
   LOGICAL :: found
   !
-  INTEGER :: ik, ikk, ikq, ibnd, jbnd, pbnd, nu, mu, vu, ierr, istatus
+#if defined(__MPI)
+  INTEGER :: istatus(MPI_STATUS_SIZE)
+#endif
+  INTEGER :: ik, ikk, ikq, ibnd, jbnd, pbnd, nu, mu, vu, ierr
   INTEGER :: nksq2, ikk2, ikq2, nkq2, ik1, ik2, ipert, jpert, n
   !
   REAL(DP), PARAMETER :: ryd2mev  = rytoev * 1.0E3_DP

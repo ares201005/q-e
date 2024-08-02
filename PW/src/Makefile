@@ -23,7 +23,6 @@ addusforce.o \
 addusstress.o \
 allocate_fft.o \
 allocate_locpot.o \
-allocate_nlpot.o \
 allocate_wfc.o \
 atomic_rho.o \
 atomic_wfc.o \
@@ -212,6 +211,7 @@ setlocal.o \
 setup.o \
 scissor.o \
 sic.o \
+starting_scf_mod.o \
 stop_run.o \
 stres_cc.o \
 stres_ewa.o \

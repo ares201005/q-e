@@ -14,7 +14,8 @@ SUBROUTINE wfcinit()
   ! ... It also open needed files or memory buffers
   !
   USE io_global,            ONLY : stdout, ionode, ionode_id
-  USE basis,                ONLY : natomwfc, starting_wfc
+  USE basis,                ONLY : natomwfc
+  USE starting_scf,         ONLY : starting_wfc
   USE bp,                   ONLY : lelfield
   USE klist,                ONLY : xk, nks, ngk, igk_k
   USE control_flags,        ONLY : io_level, lscf
@@ -34,7 +35,6 @@ SUBROUTINE wfcinit()
   USE qexsd_module,         ONLY : qexsd_readschema
   USE qes_types_module,     ONLY : output_type
   USE qes_libs_module,      ONLY : qes_reset
-  USE wavefunctions_gpum,   ONLY : using_evc
   USE uspp_init,            ONLY : init_us_2
   USE control_flags,        ONLY : use_gpu
   !
@@ -46,7 +46,6 @@ SUBROUTINE wfcinit()
   TYPE ( output_type ) :: output_obj
   !
   CALL start_clock( 'wfcinit' )
-  CALL using_evc(0) ! this may be removed
   !
   ! ... Orthogonalized atomic functions needed for DFT+U and other cases
   !
@@ -73,9 +72,10 @@ SUBROUTINE wfcinit()
      dirname = restart_dir ( )
      IF (ionode) CALL qexsd_readschema ( xmlfile(), ierr, output_obj )
      CALL mp_bcast(ierr, ionode_id, intra_image_comm)
-     IF ( ierr <= 0 ) THEN
+     IF ( ierr <= 0 .and.  (.not. ionode .or. &
+             output_obj%convergence_info%wf_collected_ispresent) ) THEN
         ! xml file is valid
-        IF (ionode) twfcollect_file = output_obj%band_structure%wf_collected
+        IF (ionode) twfcollect_file = output_obj%convergence_info%wf_collected 
         CALL mp_bcast(twfcollect_file, ionode_id, intra_image_comm)
         CALL qes_reset  ( output_obj )
      ELSE
@@ -88,6 +88,7 @@ SUBROUTINE wfcinit()
         DO ik = 1, nks
            CALL read_collected_wfc ( dirname, ik, evc, "wfc", ierr )
            IF ( ierr /= 0 ) GO TO 10
+           !$acc update device(evc)
            CALL save_buffer ( evc, nwordwfc, iunwfc, ik )
         END DO
         !
@@ -118,8 +119,8 @@ SUBROUTINE wfcinit()
         IF ( nks == 1 ) THEN
            INQUIRE (unit = iunwfc, opened = opnd_file)
            IF ( .NOT.opnd_file ) CALL diropn( iunwfc, 'wfc', 2*nwordwfc, exst )
-           CALL using_evc(2)
            CALL davcio ( evc, 2*nwordwfc, iunwfc, nks, -1 )
+           !$acc update device(evc)
            IF ( .NOT.opnd_file ) CLOSE ( UNIT=iunwfc, STATUS='keep' )
         END IF
      END IF
@@ -196,9 +197,9 @@ SUBROUTINE wfcinit()
      !
      ! ... write  starting wavefunctions to file
      !
-     IF ( nks > 1 .OR. (io_level > 1) .OR. lelfield ) CALL using_evc(0)
-     IF ( nks > 1 .OR. (io_level > 1) .OR. lelfield ) &
-         CALL save_buffer ( evc, nwordwfc, iunwfc, ik )
+     IF ( nks > 1 .OR. (io_level > 1) .OR. lelfield ) THEN
+        CALL save_buffer ( evc, nwordwfc, iunwfc, ik )
+     END IF
      !
   END DO
   !
@@ -220,7 +221,8 @@ SUBROUTINE init_wfc ( ik )
                                    allocate_bec_type_acc, deallocate_bec_type_acc, &
                                    bec_type, becp
   USE constants,            ONLY : tpi
-  USE basis,                ONLY : natomwfc, starting_wfc
+  USE basis,                ONLY : natomwfc
+  USE starting_scf,         ONLY : starting_wfc
   USE gvect,                ONLY : g, gstart
   USE klist,                ONLY : xk, ngk, igk_k
   USE wvfct,                ONLY : nbnd, npwx, et
@@ -240,7 +242,6 @@ SUBROUTINE init_wfc ( ik )
   USE mp,                   ONLY : mp_bcast
   USE xc_lib,               ONLY : xclib_dft_is, stop_exx
   !
-  USE wavefunctions_gpum,   ONLY : using_evc, using_evc_d, evc_d
   USE control_flags,        ONLY : lscf, use_gpu
   !
   IMPLICIT NONE
@@ -418,13 +419,12 @@ SUBROUTINE init_wfc ( ik )
   IF ( xclib_dft_is('hybrid') .and. lscf  ) CALL stop_exx()
   CALL start_clock( 'wfcinit:wfcrot' ); !write(*,*) 'start wfcinit:wfcrot' ; FLUSH(6)
   IF(use_gpu) THEN
-    CALL using_evc_d(2)  ! rotate_wfc_gpu (..., evc_d, etatom_d) -> evc : out (not specified)
-    !$acc host_data use_device(wfcatom,etatom)
-    CALL rotate_wfc_gpu ( npwx, ngk_ik, n_starting_wfc, gstart, nbnd, wfcatom, npol, okvan, evc_d, etatom )
+    !$acc host_data use_device(wfcatom,etatom,evc)
+    CALL rotate_wfc_gpu ( npwx, ngk_ik, n_starting_wfc, gstart, nbnd, wfcatom, npol, okvan, evc, etatom )
     !$acc end host_data
+    !$acc update self(evc)
   ELSE
     CALL rotate_wfc ( npwx, ngk(ik), n_starting_wfc, gstart, nbnd, wfcatom, npol, okvan, evc, etatom )
-    CALL using_evc(1)  ! rotate_wfc (..., evc, etatom) -> evc : out (not specified)
   END IF
   CALL stop_clock( 'wfcinit:wfcrot' ); !write(*,*) 'stop wfcinit:wfcrot' ; FLUSH(6)
   !

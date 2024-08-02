@@ -34,14 +34,15 @@ MODULE pw_restart_new
                           qexsd_init_vdw, qexsd_init_forces, qexsd_init_stress,        &
                           qexsd_init_outputElectricField, qexsd_init_outputPBC,        &
                           qexsd_init_gate_info, qexsd_init_hybrid,  qexsd_init_dftU,   &
-                          qexsd_init_rism3d, qexsd_init_rismlaue,                      &
+                          qexsd_init_rism3d, qexsd_init_rismlaue, qexsd_init_esm,      &
                           qexsd_occ_obj, qexsd_bp_obj, qexsd_start_k_obj
   USE qexsd_copy,      ONLY : qexsd_copy_parallel_info, &
        qexsd_copy_algorithmic_info, qexsd_copy_atomic_species, &
        qexsd_copy_atomic_structure, qexsd_copy_symmetry, &
        qexsd_copy_basis_set, qexsd_copy_dft, qexsd_copy_efield, &
        qexsd_copy_band_structure, qexsd_copy_magnetization, &
-       qexsd_copy_kpoints, qexsd_copy_rism3d, qexsd_copy_rismlaue
+       qexsd_copy_kpoints, qexsd_copy_rism3d, qexsd_copy_rismlaue, &
+       qexsd_copy_esm
   USE io_global, ONLY : ionode, ionode_id
   USE io_files,  ONLY : iunpun, xmlfile
   !
@@ -141,11 +142,10 @@ MODULE pw_restart_new
       USE fcp_module,           ONLY : lfcp, fcp_mu
       USE control_flags,        ONLY : ldftd3, do_makov_payne 
       USE Coul_cut_2D,          ONLY : do_cutoff_2D 
-      USE esm,                  ONLY : do_comp_esm 
+      USE esm,                  ONLY : do_comp_esm, esm_nfit, esm_w, esm_a, esm_bc, esm_efield  
       USE martyna_tuckerman,    ONLY : do_comp_mt 
       USE run_info,             ONLY : title
       !
-      USE wavefunctions_gpum,   ONLY : using_evc
       USE qexsd_module,         ONLY : qexsd_add_all_clocks 
       USE solvmol,              ONLY : nsolV, solVs
       USE rism3d_facade,        ONLY : lrism3d, ecutsolv, qsol, laue_nfit, expand_r, expand_l, &
@@ -250,8 +250,6 @@ MODULE pw_restart_new
       ! Global PW dimensions need to be properly computed, reducing across MPI tasks
       ! If local PW dimensions are not available, set to 0
       !
-      CALL using_evc(0)
-      !
       ALLOCATE( ngk_g( nkstot ) )
       ngk_g(:) = 0
       IF ( ALLOCATED (ngk) ) THEN
@@ -308,11 +306,11 @@ MODULE pw_restart_new
                         SCF_HAS_CONVERGED = scf_has_converged, &
                         N_SCF_STEPS = n_scf_steps_, SCF_ERROR=scf_error/e2,&
                         OPTIMIZATION_HAS_CONVERGED = conv_ions, &
-                        N_OPT_STEPS = n_opt_steps, GRAD_NORM = sumfor)
+                        N_OPT_STEPS = n_opt_steps, GRAD_NORM = sumfor, WF_COLLECTED=wf_collect)
          ELSE
              call qexsd_init_convergence_info(output_obj%convergence_info,   &
                         SCF_HAS_CONVERGED = scf_has_converged, &
-                        N_SCF_STEPS = n_scf_steps_, SCF_ERROR=scf_error/e2)
+                        N_SCF_STEPS = n_scf_steps_, SCF_ERROR=scf_error/e2, WF_COLLECTED=wf_collect)
          END IF
          output_obj%convergence_info_ispresent = .TRUE.
          !
@@ -350,7 +348,7 @@ MODULE pw_restart_new
 !-------------------------------------------------------------------------------
          !         
          CALL qexsd_init_atomic_structure(output_obj%atomic_structure, nsp, atm, ityp, &
-              nat, alat*tau, alat, alat*at(:,1), alat*at(:,2), alat*at(:,3), ibrav)
+              nat, alat*tau, alat, alat*at(:,1), alat*at(:,2), alat*at(:,3), ibrav, natomwfc)
          !
 !-------------------------------------------------------------------------------
 ! ... SYMMETRIES
@@ -557,6 +555,10 @@ MODULE pw_restart_new
                CALL errore ('pw_restart_new.f90: ', 'internal error line 470', 1) 
             END IF 
             CALL qexsd_init_outputPBC(output_obj%boundary_conditions, TRIM(pbc_label) )  
+            IF (do_comp_esm) THEN
+               CALL qexsd_init_esm(output_obj%boundary_conditions%esm, esm_bc, esm_nfit, esm_w, esm_efield, esm_a)
+               output_obj%boundary_conditions%esm_ispresent = .TRUE. 
+            END IF  
          ENDIF
          !
 !-------------------------------------------------------------------------------
@@ -873,8 +875,6 @@ MODULE pw_restart_new
                                        root_bgrp_id, my_bgrp_id
       USE clib_wrappers,        ONLY : f_mkdir_safe
       !
-      USE wavefunctions_gpum,   ONLY : using_evc
-      !
       IMPLICIT NONE
       !
       INTEGER               :: ios, ig, ngg, ipol, ispin
@@ -886,7 +886,6 @@ MODULE pw_restart_new
       CHARACTER(LEN=256)    :: dirname
       CHARACTER(LEN=320)    :: filename, filenameace
       !
-      CALL using_evc(0)
       dirname = restart_dir ()
       !
       ! ... check that restart_dir exists on all processors that write
@@ -952,7 +951,6 @@ MODULE pw_restart_new
          !
          ! ... read wavefunctions - do not read if already in memory (nsk==1)
          !
-         IF ( nks > 1 ) CALL using_evc(2)
          IF ( nks > 1 ) CALL get_buffer ( evc, nwordwfc, iunwfc, ik )
          !
          IF ( nspin == 2 ) THEN
@@ -979,7 +977,6 @@ MODULE pw_restart_new
          ! ... Only the first band group of each pool writes
          ! ... No warranty it works for more than one band group
          !
-         IF ( my_bgrp_id == root_bgrp_id ) CALL using_evc(0)
          IF ( my_bgrp_id == root_bgrp_id ) CALL write_wfc( iunpun, &
               filename, root_bgrp, intra_bgrp_comm, ik_g, tpiba*xk(:,ik), &
               ispin, nspin, evc, npw_g, gamma_only, nbnd, &
@@ -1145,7 +1142,7 @@ MODULE pw_restart_new
       USE control_flags,   ONLY : noinv, gamma_only, tqr, llondon, ldftd3, &
            lxdm, ts_vdw, mbd_vdw, do_makov_payne 
       USE Coul_cut_2D,     ONLY : do_cutoff_2D
-      USE esm,             ONLY : do_comp_esm 
+      USE esm,             ONLY : do_comp_esm, esm_bc, esm_nfit, esm_w, esm_efield, esm_a
       USE martyna_tuckerman,ONLY: do_comp_mt 
       USE noncollin_module,ONLY : noncolin, npol, angle1, angle2, bfield, &
               nspin_lsda, nspin_gga, nspin_mag, domag, lspinorb
@@ -1202,7 +1199,7 @@ MODULE pw_restart_new
       !
       ! ... Now read all needed variables from xml objects
       !
-      wfc_is_collected = output_obj%band_structure%wf_collected
+      wfc_is_collected = output_obj%convergence_info%wf_collected 
       lvalid_input = (TRIM(input_obj%tagname) == "input")
       !
       CALL qexsd_copy_parallel_info (parinfo_obj, nproc_file, &
@@ -1218,7 +1215,7 @@ MODULE pw_restart_new
       !! tau and ityp are allocated inside qexsd_copy_atomic_structure
       !
       CALL qexsd_copy_atomic_structure (output_obj%atomic_structure, nsp, &
-           atm, nat, tau, ityp, alat, at(:,1), at(:,2), at(:,3), ibrav )
+           atm, nat, tau, ityp, alat, at(:,1), at(:,2), at(:,3), ibrav, natomwfc )
       !
       !! More initializations needed for atomic structure:
       !! bring atomic positions and crystal axis into "alat" units;
@@ -1280,7 +1277,7 @@ MODULE pw_restart_new
       !! Band structure section
       !! et and wg are allocated inside qexsd_copy_band_structure
       CALL qexsd_copy_band_structure( output_obj%band_structure, lsda, &
-           nkstot, isk, natomwfc, nbnd, nupdwn(1), nupdwn(2), nelec, xk, &
+           nkstot, isk, nbnd, nupdwn(1), nupdwn(2), nelec, xk, &
            wk, wg, ef, ef_up, ef_dw, et )
       ! convert to Ry
       ef = ef*e2
@@ -1347,6 +1344,7 @@ MODULE pw_restart_new
          do_comp_esm   = .FALSE.
          do_cutoff_2D  = .FALSE.
       END IF
+      IF (do_comp_esm)  CALL qexsd_copy_esm(output_obj%boundary_conditions, esm_bc, esm_nfit, esm_w, esm_efield, esm_a) 
       CALL qexsd_copy_algorithmic_info ( output_obj%algorithmic_info, &
            real_space, tqr, okvan, okpaw )
       !
