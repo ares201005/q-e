@@ -38,7 +38,9 @@
                                epmatkqread, restart_step, nsmear, ii_partion,      &
                                nqc1, nqc2, nqc3, nkc1, nkc2, nkc3, assume_metal,   &
                                eliashberg, meshnum, time_rev_U_plrn, wfpt,         &
-                               ii_g, start_mesh, ii_lscreen
+                               ii_g, start_mesh, ii_lscreen,                       &
+                               hot_relax, calc_plasmon ! YZ
+
   USE control_flags,    ONLY : iverbosity
   USE noncollin_module, ONLY : noncolin
   USE constants_epw,    ONLY : ryd2ev, ryd2mev, one, two, zero, czero, eps40, cone,&
@@ -1684,6 +1686,12 @@
         ENDDO  ! end loop over q points
       ENDDO  ! cycle loop QDPT
     ENDDO  ! loop over QDPT mesh
+    !---------------------------------------------------------------------------------!
+    !
+    !! added by YZ for hot-carrier relaxation
+    IF (calc_plasmon) CALL plasmon_main
+
+    IF (hot_relax) CALL relax_elec_new()
     !---------------------------------------------------------------------------------!
     !
     IF (plrn) CALL plrn_flow_select(nrr_k, ndegen_k, irvec_r, nrr_q, ndegen_q, irvec_q, rws, nrws, dims)

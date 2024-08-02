@@ -304,7 +304,8 @@
   !!===========================================================================
   ! added by YZ for relaxation calculation
   integer :: nomega     ! no. of steps used to calculated ph dos 
-  LOGICAL :: relax_bte  ! switch of relaxation dynamics,  default false
+  LOGICAL :: hot_relax  ! switch of relaxation dynamics,  default false
+  LOGICAL :: calc_plasmon ! calculate plamson damping rate or not
   LOGICAL :: rlx_approx ! relaxtation time approximation, default false
   REAL (KIND=DP) :: omega_max! maximal phonon energy
   REAL (KIND=DP) :: Ephoton  ! Photon energy
