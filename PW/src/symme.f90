@@ -735,7 +735,7 @@ gloop:    DO jg=iig,ngm_
   END SUBROUTINE sym_rho_init_shells
   !
   !-----------------------------------------------------------------------
-  SUBROUTINE sym_rho (nspin, rhog)
+  SUBROUTINE sym_rho (nspin, rhog, is_sym )
     !-----------------------------------------------------------------------
     !! Symmetrize the charge density rho in reciprocal space.
     !
@@ -755,6 +755,8 @@ gloop:    DO jg=iig,ngm_
     COMPLEX(DP), INTENT(INOUT) :: rhog(ngm,nspin)
     !! components of rho: rhog(ig) = rho(G(:,ig)). 
     !! Unsymmetrized on input, symmetrized on output
+    INTEGER, INTENT(IN), OPTIONAL :: is_sym( nsym )
+    !! symmetry operations used for symmetrization (1 = yes, 0 = no)
     !
     ! ... local variables
     !
@@ -766,7 +768,7 @@ gloop:    DO jg=iig,ngm_
     IF ( no_rho_sym) RETURN
 #if !defined(__MPI)
     !
-    CALL sym_rho_serial ( ngm, g, nspin, rhog )
+    CALL sym_rho_serial ( ngm, g, nspin, rhog, is_sym )
     !
 #else
     !
@@ -790,7 +792,7 @@ gloop:    DO jg=iig,ngm_
     !
     !   Now symmetrize
     !
-    CALL sym_rho_serial ( ngm_, g_, nspin, rhog_ )
+    CALL sym_rho_serial ( ngm_, g_, nspin, rhog_, is_sym )
     !
     DEALLOCATE ( g_ )
     !
@@ -812,12 +814,14 @@ gloop:    DO jg=iig,ngm_
   END SUBROUTINE sym_rho
   !
   !-----------------------------------------------------------------------
-  SUBROUTINE sym_rho_serial ( ngm_, g_, nspin_, rhog_ )
+  SUBROUTINE sym_rho_serial ( ngm_, g_, nspin_, rhog_, is_sym )
     !-----------------------------------------------------------------------
     !! Symmetrize the charge density rho in reciprocal space.    
     !
     USE kinds
     USE constants,   ONLY : tpi
+    USE noncollin_module, ONLY : colin_mag
+    USE io_global,       ONLY : stdout 
     !
     IMPLICIT NONE
     !
@@ -830,6 +834,8 @@ gloop:    DO jg=iig,ngm_
     COMPLEX(DP), INTENT(INOUT) :: rhog_( ngm_, nspin_ )
     !! rho in reciprocal space: rhog_(ig) = rho(G(:,ig)). 
     !! Unsymmetrized on input, symmetrized on output
+    INTEGER, INTENT(IN), OPTIONAL :: is_sym( nsym )
+    !! symmetry operations used for symmetrization (1 = yes, 0 = no)
     !
     ! ... local variables
     !
@@ -839,10 +845,19 @@ gloop:    DO jg=iig,ngm_
     INTEGER :: irot(48), ig, isg, igl, ng, ns, nspin_lsda, is
     LOGICAL, ALLOCATABLE :: done(:)
     LOGICAL :: non_symmorphic(48)
+    INTEGER :: nsym_used, use_sym(nsym)
+    !
+    IF ( PRESENT( is_sym ) ) THEN
+       use_sym(1:nsym) = is_sym(1:nsym)
+    ELSE
+       use_sym(1:nsym) = 1
+    END IF
+    nsym_used = SUM ( use_sym(1:nsym) )
     !
     ! convert fractional translations to cartesian, in a0 units
     !
     DO ns=1,nsym
+       IF ( use_sym(ns) == 0 ) CYCLE
        non_symmorphic(ns) = ( ft(1,ns) /= 0.0_dp .OR. &
                               ft(2,ns) /= 0.0_dp .OR. &
                               ft(3,ns) /= 0.0_dp )
@@ -853,7 +868,6 @@ gloop:    DO jg=iig,ngm_
     !
     IF ( nspin_ == 4 ) THEN
        nspin_lsda = 1
-       !
     ELSE IF ( nspin_ == 1 .OR. nspin_ == 2 ) THEN
        nspin_lsda = nspin_
     ELSE
@@ -886,7 +900,7 @@ gloop:    DO jg=iig,ngm_
              magsum(:) = (0.0_dp, 0.0_dp)
              ! S^{-1} are needed here
              DO ns=1,nsym
-
+                IF ( use_sym(ns) == 0 ) CYCLE
                 sg(:) = s(:,1,invs(ns)) * g0(1,ig) + &
                         s(:,2,invs(ns)) * g0(2,ig) + &
                         s(:,3,invs(ns)) * g0(3,ig)
@@ -927,28 +941,43 @@ gloop:    DO jg=iig,ngm_
                                  g_(2,isg) * ft_(2,ns) + &
                                  g_(3,isg) * ft_(3,ns) )
                    fact = CMPLX ( COS(arg), -SIN(arg), KIND=dp )
-                   DO is=1,nspin_lsda
-                      rhosum(is) = rhosum(is) + rhog_(isg, is) * fact
-                   END DO
+                   ! time-reversal for collinear case
+                   IF ( (colin_mag == 2) .AND. (t_rev(invs(ns)) == 1) ) THEN
+                      rhosum(1) = rhosum(1) + rhog_(isg, 2) * fact
+                      rhosum(2) = rhosum(2) + rhog_(isg, 1) * fact
+                   ! other cases
+                   ELSE
+                      DO is=1,nspin_lsda
+                         rhosum(is) = rhosum(is) + rhog_(isg, is) * fact
+                      END DO
+                   END IF
                    IF ( nspin_ == 4 ) &
                         magsum(:) = magsum(:) + magrot(:) * fact
                 ELSE
-                   DO is=1,nspin_lsda
-                      rhosum(is) = rhosum(is) + rhog_(isg, is)
-                   END DO
+                   ! time-reversal for collinear case
+                   IF ( (colin_mag == 2) .AND. (t_rev(invs(ns)) == 1)) THEN
+                      rhosum(1) = rhosum(1) + rhog_(isg, 2)
+                      rhosum(2) = rhosum(2) + rhog_(isg, 1)
+                   ! other cases
+                   ELSE
+                      DO is=1,nspin_lsda
+                         rhosum(is) = rhosum(is) + rhog_(isg, is)
+                      END DO
+                   END IF
                    IF ( nspin_ == 4 ) &
                         magsum(:) = magsum(:) + magrot(:)
                 END IF
              END DO
              !
              DO is=1,nspin_lsda
-                rhosum(is) = rhosum(is) / nsym
+                rhosum(is) = rhosum(is) / nsym_used
              END DO
-             IF ( nspin_ == 4 ) magsum(:) = magsum(:) / nsym
+             IF ( nspin_ == 4 ) magsum(:) = magsum(:) / nsym_used
              !
              !  now fill the shell of G-vectors with the symmetrized value
              !
              DO ns=1,nsym
+                IF ( use_sym(ns) == 0 ) CYCLE
                 isg = shell(igl)%vect(irot(ns))
                 IF ( nspin_ == 4 ) THEN
                    ! rotate magnetization
@@ -967,18 +996,28 @@ gloop:    DO jg=iig,ngm_
                                  g_(2,isg) * ft_(2,ns) + &
                                  g_(3,isg) * ft_(3,ns) )
                    fact = CMPLX ( COS(arg), SIN(arg), KIND=dp )
-                   DO is=1,nspin_lsda
-                      rhog_(isg,is) = rhosum(is) * fact
-                   END DO
+                   if ( (colin_mag == 2) .AND. (t_rev(invs(ns)) == 1) ) THEN
+                      rhog_(isg, 1) = rhosum(2) * fact
+                      rhog_(isg, 2) = rhosum(1) * fact
+                   ELSE
+                      DO is=1,nspin_lsda
+                         rhog_(isg,is) = rhosum(is) * fact
+                      END DO
+                   END IF
                    IF ( nspin_ == 4 ) THEN
                       DO is=2,nspin_
                          rhog_(isg, is) = mag(is-1)*fact
                       END DO
                    END IF
                 ELSE
-                   DO is=1,nspin_lsda
-                      rhog_(isg,is) = rhosum(is)
-                   END DO
+                   IF ( (colin_mag == 2) .AND. (t_rev(invs(ns)) == 1) ) THEN
+                      rhog_(isg, 1) = rhosum(2)
+                      rhog_(isg, 2) = rhosum(1)
+                   ELSE
+                      DO is=1,nspin_lsda
+                         rhog_(isg,is) = rhosum(is)
+                      END DO
+                   END IF
                    IF ( nspin_ == 4 ) THEN
                       DO is=2,nspin_
                          rhog_(isg, is) = mag(is-1)

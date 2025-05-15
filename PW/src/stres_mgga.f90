@@ -146,8 +146,8 @@ SUBROUTINE stres_mgga( sigmaxc )
   !
   DO iss = 1, nspin 
      !
-     vkin = v%kin_r(:,iss)
-     rhokin = rho%kin_r(:,iss)
+     vkin = v%kin_r(1:dffts%nnr,iss)
+     rhokin = rho%kin_r(1:dffts%nnr,iss)
      !$acc update device(vkin,rhokin)
      !
      !$acc parallel loop reduction(+:sigma1,sigma2,sigma3,sigma4,sigma5,sigma6)
@@ -227,7 +227,7 @@ SUBROUTINE wfc_gradient( ibnd, ik, npw, gradpsi )
      IF ( ibnd<nbnd ) ebnd = ebnd+1
      brange = ebnd-ibnd+1
      !
-     !$acc data copyin(evc(:,ibnd:ibnd+brange-1),igk_k(:,ik:ik))
+     !$acc data copyin(igk_k(:,ik:ik))
      DO ipol = 1, 3
         !
         xki = xk(ipol,ik)
@@ -246,7 +246,7 @@ SUBROUTINE wfc_gradient( ibnd, ik, npw, gradpsi )
      !
   ELSE
      !
-     !$acc data copyin(evc(:,ibnd:ibnd),igk_k(:,ik:ik))
+     !$acc data copyin(igk_k(:,ik:ik))
      DO ipol = 1, 3
         !
         xki = xk(ipol,ik)

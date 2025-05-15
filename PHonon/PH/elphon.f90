@@ -24,7 +24,7 @@ SUBROUTINE elphon()
   USE paw_variables, ONLY : okpaw
   USE el_phon,  ONLY : done_elph
   USE dynmat, ONLY : dyn, w2
-  USE modes,  ONLY : npert, nirr, u
+  USE modes,  ONLY : npert, nirr, u, nmodes
   USE uspp_param, ONLY : nhm
   USE control_ph, ONLY : trans, xmldyn
   USE output,     ONLY : fildyn,fildvscf
@@ -51,11 +51,11 @@ SUBROUTINE elphon()
   !! dvscfin for all modes. Used when doing dvscf_r2q interpolation.
   COMPLEX(DP), POINTER :: dvscfin(:,:,:), dvscfins (:,:,:)
   COMPLEX(DP), allocatable :: phip (:, :, :, :)
-  
+
   INTEGER :: ntyp_, nat_, ibrav_, nspin_mag_, mu, nu, na, nb, nta, ntb, nqs_
   REAL(DP) :: celldm_(6), w1
   CHARACTER(LEN=3) :: atm(ntyp)
-   
+
   CALL start_clock ('elphon')
 
   if(dvscf_star%basis.eq.'cartesian') then
@@ -73,6 +73,10 @@ SUBROUTINE elphon()
     WRITE (6, '(5x,a)') "Fourier interpolating dVscf"
     ALLOCATE(dvscfin_all(dfftp%nnr, nspin_mag, 3 * nat))
     CALL dvscf_r2q(xq, u, dvscfin_all)
+    ! To save the interpolated dVscf potential to file, uncomment below.
+    ! DO imode0 = 1, nmodes
+    !    CALL davcio_drho(dvscfin_all(1, 1, imode0), lrdrho, iudvscf, imode0, +1)
+    ! ENDDO
     !
   ELSE
     WRITE (6, '(5x,a)') "Reading dVscf from file "//trim(fildvscf)
@@ -158,7 +162,7 @@ SUBROUTINE elphon()
         !  Diagonalize the dynamical matrix
         !
 
-        
+
         DO i=1,3
            do na=1,nat
               nta = ityp (na)
@@ -187,7 +191,7 @@ SUBROUTINE elphon()
         ENDDO
 
         CALL read_dyn_mat_tail(nat)
-  
+
         deallocate( phip )
      ENDIF
      !
@@ -358,7 +362,7 @@ SUBROUTINE elphel (irr, npe, imode0, dvscfins)
   USE ahc,        ONLY : elph_ahc, ib_ahc_gauge_min, ib_ahc_gauge_max
   USE apply_dpot_mod, ONLY : apply_dpot_allocate, apply_dpot_deallocate, apply_dpot_bands
   USE qpoint_aux,   ONLY : ikmks, ikmkmqs, becpt, alphapt
-  USE nc_mag_aux,   ONLY : int1_nc_save, deeq_nc_save, int3_save
+  USE lr_nc_mag,    ONLY : int1_nc_save, deeq_nc_save, int3_nc_save
   USE uspp_init,        ONLY : init_us_2
 
   IMPLICIT NONE
@@ -371,8 +375,7 @@ SUBROUTINE elphel (irr, npe, imode0, dvscfins)
   INTEGER :: isolv, nsolv, ikmk, ikmq
   COMPLEX(DP) , ALLOCATABLE :: elphmat (:,:,:), aux2(:,:)
   LOGICAL :: exst
-  COMPLEX(DP), EXTERNAL :: zdotc
-  integer :: ibnd_fst, ibnd_lst
+  integer :: ibnd_fst, ibnd_lst, block_cols, block_rows
   !
   CALL start_clock('elphel')
   !
@@ -403,7 +406,7 @@ SUBROUTINE elphel (irr, npe, imode0, dvscfins)
   !
   IF (lda_plus_u .AND. .NOT.trans) THEN
      !
-     ! Allocate and read dnsscf_all_modes from file 
+     ! Allocate and read dnsscf_all_modes from file
      !
      ALLOCATE (dnsscf_all_modes(2*Hubbard_lmax+1, 2*Hubbard_lmax+1, nspin, nat, nmodes))
      dnsscf_all_modes = (0.d0, 0.d0)
@@ -411,10 +414,10 @@ SUBROUTINE elphel (irr, npe, imode0, dvscfins)
      IF (ionode) READ(iundnsscf,*) dnsscf_all_modes
      CALL mp_bcast(dnsscf_all_modes, ionode_id, world_comm)
      REWIND(iundnsscf)
-     !  
+     !
      ! Check whether the re-read is correct
      !
-     IF (iverbosity==1) CALL elphel_read_dnsscf_check() 
+     IF (iverbosity==1) CALL elphel_read_dnsscf_check()
      !
      ! Allocate dnsscf
      !
@@ -486,10 +489,6 @@ SUBROUTINE elphel (irr, npe, imode0, dvscfins)
                  ! FIXME: .false. or .true. ???
                  CALL dvqpsi_us (ik, u (1, mode), .FALSE., becp1, alphap)
                  !
-                 ! DFPT+U: calculate the bare derivative of the Hubbard potential in el-ph
-                 !
-                 IF (lda_plus_u) CALL dvqhub_barepsi_us (ik, u(1,mode)) 
-                 !
               ELSE
                  IF (okvan) THEN
                     deeq_nc(:,:,:,:)=deeq_nc_save(:,:,:,:,2)
@@ -511,7 +510,7 @@ SUBROUTINE elphel (irr, npe, imode0, dvscfins)
            !
            IF (isolv==2) THEN
               dvscfins(:,2:4,ipert)=-dvscfins(:,2:4,ipert)
-              IF (okvan) int3_nc(:,:,:,:,ipert)=int3_save(:,:,:,:,ipert,2)
+              IF (okvan) int3_nc(:,:,:,:,ipert)=int3_nc_save(:,:,:,:,ipert,2)
            ENDIF
            !
            CALL apply_dpot_bands(ik, ibnd_lst - ibnd_fst + 1, dvscfins(:, :, ipert), &
@@ -543,7 +542,7 @@ SUBROUTINE elphel (irr, npe, imode0, dvscfins)
            !
            IF (isolv==2) THEN
               dvscfins(:,2:4,ipert)=-dvscfins(:,2:4,ipert)
-              IF (okvan) int3_nc(:,:,:,:,ipert)=int3_save(:,:,:,:,ipert,1)
+              IF (okvan) int3_nc(:,:,:,:,ipert)=int3_nc_save(:,:,:,:,ipert,1)
            ENDIF
            !
            ! If doing Allen-Heine-Cardona (AHC) calculation, we need dvpsi
@@ -560,15 +559,15 @@ SUBROUTINE elphel (irr, npe, imode0, dvscfins)
            !
            ! calculate elphmat(j,i)=<psi_{k+q,j}|dvscf_q*psi_{k,i}> for this pertur
            !
-           DO ibnd = ibnd_fst, ibnd_lst
-              DO jbnd = ibnd_fst, ibnd_lst
-                 elphmat (jbnd, ibnd, ipert) = zdotc (npwq, evq (1, jbnd), 1, &
-                      dvpsi (1, ibnd), 1)
-                 IF (noncolin) &
-                    elphmat (jbnd, ibnd, ipert) = elphmat (jbnd, ibnd, ipert)+ &
-                      zdotc (npwq, evq(npwx+1,jbnd),1,dvpsi(npwx+1,ibnd), 1)
-              ENDDO
-           ENDDO
+           block_rows = ibnd_lst - ibnd_fst + 1 
+           block_cols = block_rows  
+           CALL zgemm('C','N',block_rows, block_cols, npwq, cmplx(1._dp, 0._dp, kind=dp), &
+                       evq(1,ibnd_fst), npwx*npol, dvpsi(1, ibnd_fst), npwx*npol,         &
+                       cmplx(0._dp, 0._dp,kind=dp), elphmat(ibnd_fst, ibnd_fst,ipert),nbnd) 
+           IF (noncolin) & 
+              CALL zgemm('C','N',block_rows, block_cols, npwq, cmplx(1._dp, 0._dp, kind=dp), &
+                         evq(npwx+1,ibnd_fst), npwx*npol, dvpsi(npwx+1, ibnd_fst), npwx*npol,         &
+                         cmplx(1._dp, 0._dp,kind=dp), elphmat(ibnd_fst, ibnd_fst,ipert),nbnd)                        
         ENDDO ! ipert
         !
         ! If elph_ahc, the matrix elements are computed in ahc.f90
@@ -630,7 +629,7 @@ END SUBROUTINE elphel
 !------------------------------------------------------------------------
 SUBROUTINE elphel_read_dnsscf_check()
   !
-  ! DFPT+U: This subroutine checks whether dnsscf_all_modes was 
+  ! DFPT+U: This subroutine checks whether dnsscf_all_modes was
   !         read correctly from file.
   !
   USE kinds,      ONLY : DP
@@ -696,8 +695,8 @@ SUBROUTINE elphel_read_dnsscf_check()
      ENDDO
   ENDDO
   WRITE(stdout,*)
-  ! 
-  DEALLOCATE(dnsscf_all_modes_cart) 
+  !
+  DEALLOCATE(dnsscf_all_modes_cart)
   !
   RETURN
   !
@@ -705,7 +704,7 @@ END SUBROUTINE elphel_read_dnsscf_check
 !------------------------------------------------------------------------
 
 !------------------------------------------------------------------------
-SUBROUTINE elphsum ( )
+SUBROUTINE elphsum()
   !-----------------------------------------------------------------------
   !! Sum over BZ of the electron-phonon matrix elements \(\text{el_ph_mat}\).
   !
@@ -821,7 +820,7 @@ SUBROUTINE elphsum ( )
      nksqtot=nksq
      xk_collect(:,1:nks) = xk(:,1:nks)
      el_ph_mat_collect => el_ph_mat
-  ELSE  
+  ELSE
 !
 !  pools, allocate new variables and collect the results. All the rest
 !  remain unchanged.
@@ -877,7 +876,7 @@ SUBROUTINE elphsum ( )
   ! not yet implemented.
   !
   nksfit_dist  = ( nksfit / npool )
-  rest = ( nksfit - nksfit_dist * npool ) 
+  rest = ( nksfit - nksfit_dist * npool )
   IF ( ( my_pool_id + 1 ) <= rest ) nksfit_dist = nksfit_dist + 1
   kunit_save=kunit
   kunit=1
@@ -1008,7 +1007,7 @@ SUBROUTINE elphsum ( )
                     itemp2 = sBZ(nn)
                     call symm ( g0, u, xq, s, itemp2, rtau, irt, &
                          at, bg, nat)
-                    if (ispin==2) nn=nn+nkBZ 
+                    if (ispin==2) nn=nn+nkBZ
                     g2(nn,:,:) = g0(:,:)
                  enddo
               enddo ! k
@@ -1038,7 +1037,7 @@ SUBROUTINE elphsum ( )
                           + exp(-((effit1-etk)**2 + (effit1-etq)**2)/degauss1**2)*noint(ik)
                  enddo
                  gf(ipert,jpert,isig) = gf(ipert,jpert,isig) + &
-                      ctemp * wqa / (degauss1**2) / pi 
+                      ctemp * wqa / (degauss1**2) / pi
               enddo ! isig
               enddo ! ispin
            enddo    ! ipert
@@ -1105,7 +1104,7 @@ SUBROUTINE elphsum ( )
   enddo
   ! Isaev: save files in suitable format for processing by lambda.x
    name=TRIM(elph_dir)// 'elph.inp_lambda.' //TRIM(int_to_char(current_iq))
-                                             
+
   IF (ionode) THEN
      open(unit=12, file=TRIM(name), form='formatted', status='unknown', &
                                     iostat=ios)
@@ -1256,7 +1255,7 @@ SUBROUTINE elphsum_simple
      WRITE (iuelph, '(3f15.8,2i8)') xq, el_ph_nsigma, 3 * nat
      WRITE (iuelph, '(6e14.6)') (w2 (nu) , nu = 1, nmodes)
   ENDIF
-  
+
 
   ngauss1=0
   DO isig = 1, el_ph_nsigma
@@ -1271,7 +1270,7 @@ SUBROUTINE elphsum_simple
      ! Note that the weights of k+q points must be set to zero for the
      ! following call to yield correct results
      !
-      
+
      ef1 = efermig (et, nbnd, nks, nelec, wk, degauss1, el_ph_ngauss, 0, isk)
      dosef = dos_ef (el_ph_ngauss, degauss1, ef1, et, wk, nks, nbnd)
      ! N(Ef) is the DOS per spin, not summed over spin
@@ -1279,9 +1278,9 @@ SUBROUTINE elphsum_simple
      !
      ! Sum over bands with gaussian weights
      !
-     
+
      DO ik = 1, nksq
-        
+
         !
         ! see subroutine elphel for the logic of indices
         !
@@ -1305,9 +1304,9 @@ SUBROUTINE elphsum_simple
               phase_space = phase_space+weight
            ENDDO
         ENDDO
-        
+
      ENDDO
-     
+
      ! el_ph_sum(mu,nu)=\sum_k\sum_{i,j}[ <psi_{k+q,j}|dvscf_q(mu)*psi_{k,i}>
      !                                  x <psi_{k+q,j}|dvscf_q(nu)*psi_{k,i}>
      !                                  x \delta(e_{k,i}-Ef) \delta(e_{k+q,j}
@@ -1321,7 +1320,7 @@ SUBROUTINE elphsum_simple
      !
      ! symmetrize el_ph_sum(mu,nu) : it transforms as the dynamical matrix
      !
-     
+
      CALL symdyn_munu_new (el_ph_sum, u, xq, s, invs, rtau, irt,  at, &
           bg, nsymq, nat, irotmq, minus_q)
      !
@@ -1333,7 +1332,7 @@ SUBROUTINE elphsum_simple
         WRITE (iuelph, 9000) degauss1, ngauss1
         WRITE (iuelph, 9005) dosef, ef1 * rytoev
      ENDIF
-     
+
      DO nu = 1, nmodes
         gamma = 0.d0
         DO mu = 1, 3 * nat
@@ -1369,7 +1368,7 @@ SUBROUTINE elphsum_simple
         IF (qplot) gamma_disp(nu,isig,current_iq) = gamma * ry_to_gHz
      ENDDO
   ENDDO
-  
+
 
 9000 FORMAT(5x,'Gaussian Broadening: ',f7.3,' Ry, ngauss=',i4)
 9005 FORMAT(5x,'DOS =',f10.6,' states/spin/Ry/Unit Cell at Ef=', &
@@ -1380,13 +1379,9 @@ SUBROUTINE elphsum_simple
   !
   IF (ionode) CLOSE (unit = iuelph)
   RETURN
-  
-
-     
      !          call star_q(x_q(1,iq), at, bg, nsym , s , invs , nq, sxq, &
      !               isq, imq, .FALSE. )
-     
-
+!------------------------------------------------------------------------
 END SUBROUTINE elphsum_simple
 !------------------------------------------------------------------------
 !
@@ -1910,7 +1905,7 @@ SUBROUTINE elphfil_epa(iq)
   RETURN
 
 END SUBROUTINE elphfil_epa
-   
+
 !----------------------------------------------------------------------------
 SUBROUTINE ipoolcollect( length, nks, f_in, nkstot, f_out )
   !----------------------------------------------------------------------------
@@ -2008,7 +2003,7 @@ SUBROUTINE jpoolcollect( length, nks, f_in, nkstot, f_out )
   RETURN
   !
 END SUBROUTINE jpoolcollect
-   
+
 !-----------------------------------------------------------------------
 FUNCTION dos_ef (ngauss, degauss, ef, et, wk, nks, nbnd)
   !-----------------------------------------------------------------------

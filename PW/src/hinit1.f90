@@ -22,7 +22,7 @@ SUBROUTINE hinit1()
   USE lsda_mod,            ONLY : nspin
   USE noncollin_module,    ONLY : report
   USE scf,                 ONLY : vrs, vltot, v, kedtau
-  USE control_flags,       ONLY : tqr, use_gpu
+  USE control_flags,       ONLY : tqr, use_gpu, io_level
   USE realus,              ONLY : generate_qpointlist, betapointlist, &
                                   init_realspace_vars, real_space
   USE wannier_new,         ONLY : use_wannier
@@ -35,7 +35,6 @@ SUBROUTINE hinit1()
   USE dfunct_gpum,         ONLY : newd_gpu
   USE exx_base,            ONLY : coulomb_fac, coulomb_done
   !
-  USE scf_gpum,            ONLY : using_vrs
   USE ener,                ONLY : esol, vsol
   USE rism_module,         ONLY : lrism, rism_update_pos, rism_calc3d
   !
@@ -113,7 +112,6 @@ SUBROUTINE hinit1()
   !
   ! ... define the total local potential (external+scf)
   !
-  CALL using_vrs(1)
   CALL set_vrs( vrs, vltot, v%of_r, kedtau, v%kin_r, dfftp%nnr, nspin, &
                 doublegrid )
   !
@@ -131,7 +129,13 @@ SUBROUTINE hinit1()
   ! ... and recalculate the products of the S with the atomic wfcs used 
   ! ... in DFT+Hubbard calculations
   !
-  IF ( lda_plus_u  ) CALL orthoUwfc(.FALSE.)
+  IF ( lda_plus_u  ) THEN
+     IF (io_level>=1) THEN
+        CALL orthoUwfc(.TRUE.)
+     ELSE
+        CALL orthoUwfc(.FALSE.)
+     ENDIF
+  ENDIF
   IF ( use_wannier ) CALL orthoatwfc( .TRUE. )
   !
   ! ... The following line forces recalculation of terms used by EXX

@@ -1,5 +1,5 @@
 !
-! Copyright (C) 2001-2022 Quantum ESPRESSO group
+! Copyright (C) 2001-2025 Quantum ESPRESSO Foundation
 ! This file is distributed under the terms of the
 ! GNU General Public License. See the file `License'
 ! in the root directory of the present distribution,
@@ -14,20 +14,24 @@ SUBROUTINE wfcinit()
   ! ... It also open needed files or memory buffers
   !
   USE io_global,            ONLY : stdout, ionode, ionode_id
+  USE ions_base,            ONLY : nat, ityp
   USE basis,                ONLY : natomwfc
+  USE upf_ions,             ONLY : n_atom_wfc
   USE starting_scf,         ONLY : starting_wfc
   USE bp,                   ONLY : lelfield
   USE klist,                ONLY : xk, nks, ngk, igk_k
   USE control_flags,        ONLY : io_level, lscf
   USE fixed_occ,            ONLY : one_atom_occupations
-  USE ldaU,                 ONLY : lda_plus_u, Hubbard_projectors, wfcU, lda_plus_u_kind
+  USE ldaU,                 ONLY : lda_plus_u, Hubbard_projectors, wfcU, &
+                                   nwfcU, lda_plus_u_kind
   USE lsda_mod,             ONLY : lsda, current_spin, isk
-  USE io_files,             ONLY : nwordwfc, nwordwfcU, iunhub, iunwfc,&
-                                   diropn, xmlfile, restart_dir
+  USE noncollin_module,     ONLY : npol, noncolin
+  USE io_files,             ONLY : nwordwfc, nwordwfcU, nwordatwfc, iunhub, &
+                                   iunwfc, iunsat, diropn, xmlfile, restart_dir
   USE buffers,              ONLY : open_buffer, close_buffer, get_buffer, save_buffer
   USE uspp,                 ONLY : nkb, vkb
   USE wavefunctions,        ONLY : evc
-  USE wvfct,                ONLY : nbnd, current_k, et
+  USE wvfct,                ONLY : nbnd, npwx, current_k, et
   USE wannier_new,          ONLY : use_wannier
   USE pw_restart_new,       ONLY : read_collected_wfc
   USE mp,                   ONLY : mp_bcast, mp_sum
@@ -47,12 +51,31 @@ SUBROUTINE wfcinit()
   !
   CALL start_clock( 'wfcinit' )
   !
+  ! ... set number of atomic wavefunctions
+  !
+  natomwfc = n_atom_wfc( nat, ityp, noncolin )
+  !
   ! ... Orthogonalized atomic functions needed for DFT+U and other cases
   !
-  IF ( (use_wannier .OR. one_atom_occupations ) .AND. lda_plus_u ) &
-       CALL errore ( 'wfcinit', 'currently incompatible options', 1 )
-  IF ( use_wannier .OR. one_atom_occupations ) CALL orthoatwfc ( use_wannier )
-  IF ( lda_plus_u ) CALL orthoUwfc(.FALSE.)
+  IF ( use_wannier .OR. one_atom_occupations ) THEN
+     !
+     IF ( lda_plus_u ) CALL errore ( 'wfcinit', 'incompatible options', 1 )
+     nwordatwfc= npwx*natomwfc*npol
+     CALL open_buffer( iunsat, 'satwfc', nwordatwfc, io_level, exst )
+     CALL orthoatwfc ( use_wannier )
+     !
+  ELSE IF ( lda_plus_u .AND. ( Hubbard_projectors.NE.'pseudo') ) THEN
+     !
+     ! nwfcU is computed in init_hubbard
+     ALLOCATE( wfcU(npwx*npol,nwfcU) )
+     !$acc enter data create(wfcU)
+     IF (io_level>=1) THEN
+        CALL orthoUwfc(.TRUE.)
+     ELSE
+        CALL orthoUwfc(.FALSE.)
+     ENDIF
+     !
+  END IF
   !
   ! ... open files/buffer for wavefunctions (nwordwfc set in openfil)
   ! ... io_level > 1 : open file, otherwise: open buffer
@@ -184,8 +207,10 @@ SUBROUTINE wfcinit()
      !
      ! ... Needed for DFT+U
      !
-     IF ( nks > 1 .AND. lda_plus_u .AND. (Hubbard_projectors .NE. 'pseudo') ) &
+     IF ( nks > 1 .AND. lda_plus_u .AND. (Hubbard_projectors.NE.'pseudo') ) THEN
         CALL get_buffer( wfcU, nwordwfcU, iunhub, ik )
+        !$acc update device(wfcU)
+     END IF
      !
      ! DFT+U+V: calculate the phase factor at a given k point
      !
@@ -198,6 +223,7 @@ SUBROUTINE wfcinit()
      ! ... write  starting wavefunctions to file
      !
      IF ( nks > 1 .OR. (io_level > 1) .OR. lelfield ) THEN
+        !$acc update self(evc)
         CALL save_buffer ( evc, nwordwfc, iunwfc, ik )
      END IF
      !
@@ -217,8 +243,7 @@ SUBROUTINE init_wfc ( ik )
   !
   USE kinds,                ONLY : DP
   USE bp,                   ONLY : lelfield
-  USE becmod,               ONLY : allocate_bec_type, deallocate_bec_type, &
-                                   allocate_bec_type_acc, deallocate_bec_type_acc, &
+  USE becmod,               ONLY : allocate_bec_type_acc, deallocate_bec_type_acc, &
                                    bec_type, becp
   USE constants,            ONLY : tpi
   USE basis,                ONLY : natomwfc
@@ -254,11 +279,8 @@ SUBROUTINE init_wfc ( ik )
   INTEGER :: rnd_idx, ngk_ik
   REAL(DP) :: rr1, rr2, arg, xk_1, xk_2, xk_3
   REAL(DP), ALLOCATABLE :: etatom(:) ! atomic eigenvalues
-  !$acc declare device_resident(etatom)
   !
   COMPLEX(DP), ALLOCATABLE :: wfcatom(:,:,:) ! atomic wfcs for initialization
-  ! should be declared "device_resident(wfcatom)" but gives problems inside
-  ! "atomic_wfc" for spin-orbit case and openmp compilation - not sure why
   !
 #if defined(__CUDA)
   REAL(DP),    ALLOCATABLE :: randy_vec(:) ! data for random
@@ -401,6 +423,7 @@ SUBROUTINE init_wfc ( ik )
   ! ... Diagonalize the Hamiltonian on the basis of atomic wfcs
   !
   ALLOCATE( etatom( n_starting_wfc ) )
+  !$acc enter data create(etatom)
   !
   ! ... Allocate space for <beta|psi>
   !
@@ -419,10 +442,7 @@ SUBROUTINE init_wfc ( ik )
   IF ( xclib_dft_is('hybrid') .and. lscf  ) CALL stop_exx()
   CALL start_clock( 'wfcinit:wfcrot' ); !write(*,*) 'start wfcinit:wfcrot' ; FLUSH(6)
   IF(use_gpu) THEN
-    !$acc host_data use_device(wfcatom,etatom,evc)
     CALL rotate_wfc_gpu ( npwx, ngk_ik, n_starting_wfc, gstart, nbnd, wfcatom, npol, okvan, evc, etatom )
-    !$acc end host_data
-    !$acc update self(evc)
   ELSE
     CALL rotate_wfc ( npwx, ngk(ik), n_starting_wfc, gstart, nbnd, wfcatom, npol, okvan, evc, etatom )
   END IF
@@ -439,6 +459,7 @@ SUBROUTINE init_wfc ( ik )
   !
   CALL deallocate_bec_type_acc ( becp )
   !
+  !$acc exit data delete(etatom)
   DEALLOCATE( etatom )
   !$acc end data
   DEALLOCATE( wfcatom )

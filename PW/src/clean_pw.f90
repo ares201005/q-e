@@ -1,5 +1,5 @@
 
-! Copyright (C) 2001-2012 Quantum ESPRESSO group
+! Copyright (C) 2001-2024 Quantum ESPRESSO Foundation
 ! This file is distributed under the terms of the
 ! GNU General Public License. See the file `License'
 ! in the root directory of the present distribution,
@@ -19,7 +19,6 @@ SUBROUTINE clean_pw( lflag )
   !! phonon, vc-relax). Beware: the new calculation should not CALL any
   !! of the routines mentioned above.
   !
-  USE basis,                ONLY : swfcatom
   USE cellmd,               ONLY : lmovecell
   USE ions_base,            ONLY : deallocate_ions_base
   USE fixed_occ,            ONLY : f_inp
@@ -33,7 +32,7 @@ SUBROUTINE clean_pw( lflag )
                                    vrs, kedtau, destroy_scf_type, vnew
   USE symm_base,            ONLY : irt
   USE symme,                ONLY : sym_rho_deallocate
-  USE wavefunctions,        ONLY : evc, psic, psic_nc
+  USE wavefunctions,        ONLY : deallocate_wfc, psic, psic_nc
   USE uspp,                 ONLY : deallocate_uspp
   USE uspp_param,           ONLY : upf
   USE atwfc_mod,            ONLY : deallocate_tab_atwfc
@@ -64,8 +63,6 @@ SUBROUTINE clean_pw( lflag )
   USE libmbd_interface,     ONLY : clean_mbd
   USE dftd3_qe,             ONLY : dftd3_clean
   !
-  USE scf_gpum,             ONLY : deallocate_scf_gpu
-  !
   USE control_flags,        ONLY : sic, scissor
   USE sic_mod,              ONLY : deallocate_sic
   USE sci_mod,              ONLY : deallocate_scissor
@@ -74,9 +71,6 @@ SUBROUTINE clean_pw( lflag )
 #if defined (__ENVIRON)
   USE plugin_flags,         ONLY : use_environ
   USE environ_base_module,  ONLY : clean_environ
-#endif
-#if defined (__CUDA)
-  USE cudafor
 #endif
   !
   IMPLICIT NONE
@@ -142,8 +136,8 @@ SUBROUTINE clean_pw( lflag )
   IF ( ALLOCATED( rhog_core ) )  DEALLOCATE( rhog_core )
   IF ( ALLOCATED( psic    ) )    DEALLOCATE( psic    )
   IF ( ALLOCATED( psic_nc ) )    DEALLOCATE( psic_nc )
+  !$acc exit data delete(vrs)
   IF ( ALLOCATED( vrs     ) )    DEALLOCATE( vrs     )
-  CALL deallocate_scf_gpu()
   !
   ! ... arrays allocated in allocate_locpot.f90 ( and never deallocated )
   !
@@ -170,14 +164,7 @@ SUBROUTINE clean_pw( lflag )
   !
   ! ... arrays allocated in allocate_wfc.f90 ( and never deallocated )
   !
-  IF ( ALLOCATED( evc ) ) THEN
-#if defined(__CUDA)
-    !$acc exit data delete(evc)
-    IF(use_gpu) istat = cudaHostUnregister(C_LOC(evc(1,1)))
-#endif
-    DEALLOCATE( evc )
-  END IF
-  IF ( ALLOCATED( swfcatom ) )   DEALLOCATE( swfcatom )
+  CALL deallocate_wfc ( )
   !
   ! ... fft structures allocated in data_structure.f90  
   !

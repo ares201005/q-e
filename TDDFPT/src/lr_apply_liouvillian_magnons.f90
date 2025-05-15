@@ -39,7 +39,6 @@ SUBROUTINE lr_apply_liouvillian_magnons( evc1, evc1_new, L_dag )
  
   USE io_global,             ONLY : stdout
   USE uspp_init,             ONLY : init_us_2
-  USE scf_gpum,              ONLY : vrs_d
 
   IMPLICIT NONE
   !
@@ -123,7 +122,7 @@ SUBROUTINE lr_apply_liouvillian_magnons( evc1, evc1_new, L_dag )
      ! Calculation of the response HXC potential
      ! from the response charge density.
      !
-     CALL dv_of_drho (dvrsc, .false.)
+     CALL dv_of_drho (dvrsc)
      !
      ! Interpolation of the HXC potential from the thick mesh 
      ! to a smoother mesh (if doublegrid=.true.)
@@ -261,7 +260,7 @@ SUBROUTINE lr_apply_liouvillian_magnons( evc1, evc1_new, L_dag )
      ! Apply the operator ( H - \epsilon S + alpha_pv P_v) to evc1
      ! where alpha_pv = 0
      !
-     !$acc data copy(evc1(1:npwx*npol,1:nbnd,ik,1),sevc1_new(1:npwx*npol,1:nbnd,ik), et(:,ikk))
+     !$acc data copyin(evc1(1:npwx*npol,1:nbnd,ik,1)) copy(sevc1_new(1:npwx*npol,1:nbnd,ik,1), et(:,ikk))
      CALL ch_psi_all (npwq, evc1(:,:,ik,1), sevc1_new(:,:,ik,1), et(:,ikk), ik, nbnd_occ(ikk)) 
      !$acc end data
      !
@@ -402,29 +401,26 @@ SUBROUTINE lr_apply_liouvillian_magnons( evc1, evc1_new, L_dag )
      !
      ! Change the sign of b_xc
      !
+     !$acc kernels
      vrs(:,2) = - vrs(:,2)
      vrs(:,3) = - vrs(:,3)
      vrs(:,4) = - vrs(:,4)     
+     !$acc end kernels
      !
-#if defined(__CUDA)
-     vrs_d = vrs
-#endif
      ! Apply the operator ( H - \epsilon S + alpha_pv P_v) to evc1
      ! where alpha_pv = 0
      !
-     !$acc data copy(evc1(1:npwx*npol,1:nbnd,ik,2),sevc1_new(1:npwx*npol,1:nbnd,ik,2), et(:,imk))
+     !$acc data copyin(evc1(1:npwx*npol,1:nbnd,ik,2)) copy(sevc1_new(1:npwx*npol,1:nbnd,ik,2), et(:,imk))
      CALL ch_psi_all (npwq, evc1(:,:,ik,2), sevc1_new(:,:,ik,2), et(:,imk), ik, nbnd_occ(imk))
      !$acc end data
      !
      ! Change the sign of b_xc back
      !
+     !$acc kernels
      vrs(:,2) = - vrs(:,2)
      vrs(:,3) = - vrs(:,3)
      vrs(:,4) = - vrs(:,4)
-     !
-#if defined(__CUDA)
-     vrs_d = vrs
-#endif
+     !$acc end kernels
      !
      IF (ALLOCATED(psic_nc)) DEALLOCATE(psic_nc)
      !

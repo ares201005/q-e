@@ -1181,7 +1181,6 @@ contains
     use klist,       only : ngk
     use lr_dav_variables, only : reference, diag_of_h, tr_energy,eign_value_order,&
                      &turn2planb
-    use g_psi_mod
     
     implicit none
     complex(dp)  :: vect(npwx,nbnd)
@@ -1587,7 +1586,7 @@ contains
       dvrss(ir) = w1 * dvrss(ir) * psic(ir)         ! drho = 2*v1*c1 -> dvrss
     enddo
 
-    call dv_of_drho(dvrss,.false.)       ! calc the potential change 
+    call dv_of_drho(dvrss)       ! calc the potential change
 
     wfck(:,1) = evc0(:,v2,1)
     call invfft_orbital_gamma(wfck(:,:),1,1)  ! FFT: v2 -> psic
