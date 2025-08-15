@@ -1,5 +1,5 @@
 !
-! Copyright (C) 2001-2023 Quantum ESPRESSO group
+! Copyright (C) 2001-2025 Quantum ESPRESSO group
 ! This file is distributed under the terms of the
 ! GNU General Public License. See the file `License'
 ! in the root directory of the present distribution,
@@ -16,6 +16,12 @@ MODULE ldaU
   USE parameters,    ONLY : ntypx, natx, sc_size
   USE ions_base,     ONLY : nat, ntyp => nsp, ityp
   USE control_flags, ONLY : dfpt_hub
+#if defined (__OSCDFT)
+  USE plugin_flags,      ONLY : use_oscdft
+  USE oscdft_base,       ONLY : oscdft_ctx
+  USE oscdft_functions,  ONLY : oscdft_init_constraint
+#endif 
+  USE io_global,     ONLY : stdout
   !
   SAVE
   !
@@ -29,6 +35,10 @@ MODULE ldaU
   !! the Hubbard U (main Hubbard channel)
   REAL(DP) :: Hubbard_U2(ntypx)
   !! the Hubbard U (second (and third) Hubbard channel)
+  REAL(DP) :: Hubbard_Um(lqmax,2,ntypx)
+  !! the (spin-)orbital-resolved Hubbard U
+  REAL(DP) :: Hubbard_Um_nc(2*lqmax,ntypx)
+  !! the (spin-)orbital-resolved Hubbard U (noncolinear case)
   REAL(DP) :: Hubbard_J0(ntypx)
   !! the Hubbard J, in simplified DFT+U
   REAL(DP) :: Hubbard_J(3,ntypx)
@@ -40,6 +50,10 @@ MODULE ldaU
   !! the Hubbard alpha (used to calculate U)
   REAL(DP) :: Hubbard_alpha_back(ntypx)
   !! the Hubbard alpha (used to calculate U on background states)
+  REAL(DP) :: Hubbard_alpha_m(lqmax,2,ntypx)
+  !! the Hubbard alpha used to calculate orbital-resolved U parameters
+  REAL(DP) :: Hubbard_alpha_m_nc(2*lqmax,ntypx)
+  !! the Hubbard alpha used to calculate orbital-resolved U parameters (noncolinear case)
   REAL(DP) :: Hubbard_beta(ntypx)
   !! the Hubbard beta (used to calculate J0)
   REAL(DP) :: Hubbard_occ(ntypx,3)
@@ -103,6 +117,14 @@ MODULE ldaU
   LOGICAL :: hub_pot_fix
   !! if .TRUE. do not include into account the change of the Hubbard potential
   !! during the SCF cycle (needed to compute U self-consistently with supercells)
+  LOGICAL :: orbital_resolved
+  !! if .TRUE., the orbital-resolved formulation of Hubbard corrections is used
+  !! currently only affects Hubbard U and Hubbard alpha
+  LOGICAL :: apply_U
+  !!  In one-step orbital-resolved DFT+U calculations, once set to .TRUE.,
+  !!  the Hubbard potential and energy are calculated based on the diagonalized 
+  !!  occupations. Before, Hubbard corrections are not applied in order
+  !!  to stabilize the eigenstates before storing reference eigenvectors.
   LOGICAL :: iso_sys
   !! .TRUE. if the system is isolated (the code diagonalizes
   !! and prints the full occupation matrix)
@@ -127,10 +149,19 @@ MODULE ldaU
   !! coefficients for projecting onto beta functions
   REAL(DP), ALLOCATABLE :: q_ps(:,:,:)
   !! (matrix elements on AE and PS atomic wfcs)
+  REAL(DP), ALLOCATABLE :: lambda_ns(:,:,:)
+  !! Array to store the eigenvalues of the occupation matrix,
+  !! needed for orbital-resolved DFT+U
+  COMPLEX(DP), ALLOCATABLE :: eigenvecs_ref(:,:,:,:)
+  !! Eigenvectors used for tracking
+  !! orbitals in orbital-resolved DFT+U
+  INTEGER, ALLOCATABLE :: order_um(:,:,:) 
   !!
-  !****************************************************
+  !***************************************************
   !                Hubbard V part                     !
   !****************************************************
+  !
+  ! Inter atomic interaction should be cut off at some distance 
   !
   ! Inter atomic interaction should be cut off at some distance 
   ! that is the reason of having so many unitcell information. 
@@ -155,6 +186,7 @@ MODULE ldaU
   !! Distance between atoms in the 3x3x3 supercell (if sc_size = 1)
   INTEGER,  ALLOCATABLE :: ityp_s(:)
   !! Type of atoms in the 3x3x3 supercell (if sc_size = 1)
+  REAL(DP), ALLOCATABLE :: nsnew(:,:,:,:)
   COMPLEX(DP), ALLOCATABLE :: nsg(:,:,:,:,:), nsgnew(:,:,:,:,:)
   !! Generalized occupation matrices, which depend on two atomic sites.
   !! These matrices nsg(at1,m1,viz,m2,sp) store the expectation value:
@@ -209,6 +241,9 @@ CONTAINS
     lba = .FALSE.
     lb  = .FALSE.
     hub_back = .FALSE.
+    hub_pot_fix = .FALSE.
+    orbital_resolved = .FALSE.
+    apply_U = .FALSE.
     !
     is_hubbard(:) = .FALSE.
     is_hubbard_back(:) = .FALSE.
@@ -233,15 +268,25 @@ CONTAINS
        !
        DO nt = 1, ntyp
           !
-          is_hubbard(nt) = Hubbard_U(nt) /= 0.0_DP          .OR. &
-                           Hubbard_U2(nt)/= 0.0_dp          .OR. & 
-                           Hubbard_alpha(nt) /= 0.0_DP      .OR. &
-                           Hubbard_alpha_back(nt) /= 0.0_dp .OR. &
-                           Hubbard_J0(nt) /= 0.0_DP         .OR. &
+          is_hubbard(nt) = Hubbard_U(nt) /= 0.0_DP                   .OR. &
+                           Hubbard_U2(nt)/= 0.0_dp                   .OR. &
+                           ANY(Hubbard_Um(:,:,nt) /= 0.0_DP)         .OR. &
+                           ANY(Hubbard_Um_nc(:,nt) /= 0.0_DP)        .OR. &
+                           Hubbard_alpha(nt) /= 0.0_DP               .OR. &
+                           Hubbard_alpha_back(nt) /= 0.0_dp          .OR. &
+                           ANY(Hubbard_alpha_m(:,:,nt) /= 0.0_DP)    .OR. &
+                           ANY(Hubbard_alpha_m_nc(:,nt) /= 0.0_DP)   .OR. &
+                           Hubbard_J0(nt) /= 0.0_DP                  .OR. &
                            Hubbard_beta(nt) /= 0.0_DP  
           !
           is_hubbard_back(nt) = Hubbard_U2(nt)/= 0.0_dp     .OR. &
                                 Hubbard_alpha_back(nt) /= 0.0_dp                 
+          !
+          orbital_resolved =  orbital_resolved .OR. &
+                              ANY(Hubbard_Um(:,:,nt) /= 0.0_DP)       .OR. &
+                              ANY(Hubbard_Um_nc(:,nt) /= 0.0_DP)      .OR. &
+                              ANY(Hubbard_alpha_m(:,:,nt) /= 0.0_DP)  .OR. &
+                              ANY(Hubbard_alpha_m_nc(:,nt) /= 0.0_DP)
           !
           IF ( is_hubbard(nt) ) THEN
              ! Hubbard_l is read from the input file (HUBBARD card)
@@ -280,6 +325,36 @@ CONTAINS
           ldmx_tot = MAX( ldmx_tot, ldim_u(nt) )
           !
        ENDDO !nt
+       !
+       IF (orbital_resolved) THEN
+          IF (noncolin) THEN
+             ! need to store eigenvectors and eigenvalues in a 2*ldim array
+             ! retain extra-spin dimension for compatibility
+             ALLOCATE(lambda_ns(2*ldmx,1,nat))
+             ALLOCATE(eigenvecs_ref(2*ldmx,2*ldmx,1,nat))
+          ELSE
+             ALLOCATE(lambda_ns(ldmx,nspin,nat))
+             ALLOCATE(eigenvecs_ref(ldmx,ldmx,nspin,nat))
+          ENDIF
+          !
+          lambda_ns(:,:,:) = 0.0_DP
+          eigenvecs_ref(:,:,:,:) = CMPLX(0.d0,0.d0, kind=DP)
+       ENDIF
+       !
+       IF ( ANY(Hubbard_alpha(1:ntyp) /= 0.0_DP)       .OR. &
+            ANY(Hubbard_alpha_m(:,:,1:ntyp) /= 0.0_DP) .OR. & 
+            ANY(Hubbard_alpha_m_nc(:,1:ntyp) /= 0.0_DP)       ) THEN
+          ! To apply LR-cDFT to calculate Hubbard parameters,
+          ! we fix the Hubbard potential. Also, if this is an orbital-
+          ! resolved calculation, turn on corrections before the first iteration.
+          ! This supposes we are restarting from a converged charge density, which
+          ! is checked in potinit.f90.
+          hub_pot_fix = .TRUE.
+          IF (orbital_resolved) apply_U = .TRUE.
+          WRITE(stdout,'(/5x,"NONZERO HUBBARD_ALPHA DETECTED:")')
+          WRITE(stdout,'(/5x,"FIXING HUBBARD POTENTIAL TO THE &
+                              &GROUND STATE ONE (PRB 98, 085127)")')
+       ENDIF
        !
        IF (ALLOCATED(ll)) DEALLOCATE (ll) 
        ALLOCATE(ll(ldmx_tot,ntyp))
@@ -396,7 +471,7 @@ CONTAINS
           IF (  is_hubbard(nt) ) THEN
              ! Hubbard_l is read from the input file (HUBBARD card)
              Hubbard_lmax = MAX( Hubbard_lmax, Hubbard_l(nt) )
-             ldmx = MAX( ldmx, ldim_u(nt) )
+             ldmx = MAX( ldmx, 2*Hubbard_l(nt)+1 )
              ldim_u(nt) = 2*Hubbard_l(nt)+1
              IF (hubbard_occ(nt,1)<0.0d0) CALL determine_hubbard_occ(nt,1)
           ENDIF
@@ -475,6 +550,12 @@ CONTAINS
        !
     ENDIF
     !
+#if defined (__OSCDFT)
+     IF (use_oscdft .AND. (oscdft_ctx%inp%oscdft_type==2)) THEN
+        CALL oscdft_init_constraint (oscdft_ctx, ldmx, starting_ns, lda_plus_u, lda_plus_u_kind, is_hubbard)
+     ENDIF
+#endif
+    !
     IF ( Hubbard_lmax == -1 ) CALL errore( 'init_hubbard', &
          'DFT+Hubbard calculation but Hubbard_l not set', 1 )
     !
@@ -543,6 +624,8 @@ CONTAINS
      IF ( ALLOCATED( atom_pos ) )      DEALLOCATE( atom_pos )
      IF ( ALLOCATED( at_sc ) )         DEALLOCATE( at_sc )
      IF ( ALLOCATED( sc_at ) )         DEALLOCATE( sc_at )
+     IF ( ALLOCATED( lambda_ns ) )     DEALLOCATE( lambda_ns )
+     IF ( ALLOCATED( eigenvecs_ref))   DEALLOCATE( eigenvecs_ref )
      IF ( ALLOCATED( neighood ) ) THEN
         DO na = 1, nat
            CALL deallocate_at_center_type ( neighood(na) )
@@ -562,6 +645,13 @@ CONTAINS
      IF ( ALLOCATED( dist_s ) )        DEALLOCATE( dist_s )
      IF ( ALLOCATED( ityp_s ) )        DEALLOCATE( ityp_s )
   ENDIF
+  !
+#if defined (__OSCDFT)
+  IF (use_oscdft .AND. (oscdft_ctx%inp%oscdft_type==2)) THEN
+     IF ( ALLOCATED( oscdft_ctx%constraining ) ) DEALLOCATE( oscdft_ctx%constraining )
+     IF ( ALLOCATED( oscdft_ctx%constraint ) ) DEALLOCATE( oscdft_ctx%constraint )
+  ENDIF
+#endif
   !
   RETURN
   !

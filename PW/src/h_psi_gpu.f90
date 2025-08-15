@@ -106,7 +106,6 @@ SUBROUTINE h_psi__gpu( lda, n, m, psi, hpsi )
   USE exx,                     ONLY: use_ace, vexx, vexxace_gamma_gpu, vexxace_k_gpu
   USE xc_lib,                  ONLY: exx_is_active, xclib_dft_is
   USE fft_helper_subroutines
-  USE device_memcpy_m,         ONLY: dev_memcpy, dev_memset
   !
   USE scf,                     ONLY: vrs  
   USE wvfct,                   ONLY: g2kin  
@@ -296,7 +295,7 @@ SUBROUTINE h_psi__gpu( lda, n, m, psi, hpsi )
      !
   END IF
 #if defined(__OSCDFT)
-  IF ( use_oscdft ) THEN
+  IF ( use_oscdft .AND. (oscdft_ctx%inp%oscdft_type==1)) THEN
      CALL oscdft_h_psi_gpu(oscdft_ctx, lda, n, m, psi, hpsi)
   END IF
 #endif

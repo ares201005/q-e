@@ -1345,6 +1345,8 @@ SUBROUTINE control_iosys()
   IF ( llondon.AND.lxdm .OR. llondon.AND.ts_vdw_ .OR. lxdm.AND.ts_vdw_ .OR. &
            ldftd3.AND.llondon .OR. ldftd3.AND.lxdm .OR. ldftd3.AND.ts_vdw ) &
      CALL errore("iosys","must choose a unique vdW correction!", 1)
+  IF ( lxdm .AND. noncolin ) &
+     CALL errore("iosys","XDM not implemented for noncolinear case", 1)
   !
   IF ( llondon) THEN
      lon_rcut    = london_rcut
@@ -2000,18 +2002,23 @@ SUBROUTINE dftu_iosys ( ntyp )
                                Hubbard_U, Hubbard_J, Hubbard_J0, Hubbard_V, Hubbard_U2, &
                                Hubbard_n, Hubbard_l, Hubbard_projectors, &
                                Hubbard_n2, Hubbard_l2, Hubbard_n3, Hubbard_l3, &
-                               lda_plus_u, lda_plus_u_kind
+                               lda_plus_u, lda_plus_u_kind, Hubbard_Um, Hubbard_alpha_m, &
+                               Hubbard_Um_nc, Hubbard_alpha_m_nc
   !
   USE constants,     ONLY : rytoev
   !
   ! Hubbard parameters: output
   !
   USE ldaU,          ONLY : Hubbard_U_  => hubbard_u, &
+                            Hubbard_Um_  => hubbard_um, &
+                            Hubbard_Um_nc_  => hubbard_um_nc, &
                             Hubbard_J0_ => hubbard_j0, &
                             Hubbard_J_ => hubbard_j, &
                             Hubbard_n_ => hubbard_n, &
                             Hubbard_l_ => hubbard_l, &
                             Hubbard_alpha_ => hubbard_alpha, &
+                            Hubbard_alpha_m_ => hubbard_alpha_m, &
+                            Hubbard_alpha_m_nc_ => hubbard_alpha_m_nc, &
                             Hubbard_beta_ => hubbard_beta, &
                             lda_plus_u_    => lda_plus_u, &
                             lda_plus_u_kind_    => lda_plus_u_kind, &
@@ -2042,6 +2049,8 @@ SUBROUTINE dftu_iosys ( ntyp )
   !
   !
   Hubbard_U_(1:ntyp)          = hubbard_u(1:ntyp) / rytoev
+  Hubbard_Um_(:,:,:)     = hubbard_um(:,:,:) / rytoev
+  Hubbard_Um_nc_(:,:)    = hubbard_um_nc(:,:) / rytoev
   Hubbard_J_(1:3,1:ntyp)      = hubbard_j(1:3,1:ntyp) / rytoev
   Hubbard_J0_(1:ntyp)         = hubbard_j0(1:ntyp) / rytoev
   Hubbard_V_(:,:,:)           = hubbard_V(:,:,:) / rytoev
@@ -2051,9 +2060,11 @@ SUBROUTINE dftu_iosys ( ntyp )
   Hubbard_n2_(1:ntyp)         = hubbard_n2(1:ntyp)
   Hubbard_l2_(1:ntyp)         = hubbard_l2(1:ntyp)
   Hubbard_n3_(1:ntyp)         = hubbard_n3(1:ntyp)
-  Hubbard_l3_(1:ntyp)         = hubbard_l3(1:ntyp)
+  Hubbard_l3_(1:ntyp)         = hubbard_l3(1:ntyp) 
   Hubbard_projectors_         = hubbard_projectors
-  Hubbard_alpha_(1:ntyp)      = hubbard_alpha(1:ntyp) / rytoev
+  Hubbard_alpha_(:)      = hubbard_alpha(:) / rytoev
+  Hubbard_alpha_m_(:,:,:) = hubbard_alpha_m(:,:,:) / rytoev
+  Hubbard_alpha_m_nc_(:,:) = hubbard_alpha_m_nc(:,:) / rytoev
   Hubbard_beta_(1:ntyp)       = hubbard_beta(1:ntyp) / rytoev
   Hubbard_occ_(1:ntyp,1:3)    = hubbard_occ(1:ntyp,1:3)
   Hubbard_alpha_back_(1:ntyp) = hubbard_alpha_back(1:ntyp) / rytoev
@@ -2199,7 +2210,6 @@ SUBROUTINE set_wmass ( )
   ENDIF
   IF ( wmass <= 0.D0 ) CALL errore( 'set_wmass', &
             & 'vcsmd: a positive value for cell mass is required', 1 )
-  print *, 'check tnoseh fnoseh', tnoseh, fnoseh
   IF (tnoseh) CALL cell_nose_init(temph, fnoseh)
   !
 END SUBROUTINE set_wmass

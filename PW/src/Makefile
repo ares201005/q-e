@@ -32,7 +32,6 @@ atomic_wfc.o \
 atomic_wfc_mod.o \
 average_pp.o \
 acfdt_in_pw.o \
-newd.o \
 newd_acc.o \
 beef.o \
 bp_mod.o \
@@ -274,6 +273,7 @@ oscdft_occupations.o \
 oscdft_wfcO.o \
 oscdft_forces.o \
 oscdft_forces_subs.o \
+oscdft_extended.o \
 d3hess_mod.o
 
 

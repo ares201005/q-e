@@ -62,6 +62,7 @@ program = PW
 inputs_args = ('uspp.in' ,''), ('uspp-2.in' ,''), ('uspp-cg.in' ,''), ('uspp-cg-gamma.in' ,''), ('uspp-hyb-g.in' ,''), ('uspp-hyb-k.in',''), ('uspp-mixing_TF.in' ,''), ('uspp-mixing_localTF.in' ,''), ('uspp-mixing_ndim.in' ,''), ('uspp-singlegrid.in' ,''), ('uspp1-coulomb.in' ,''), ('uspp1.in' ,''), ('uspp2.in' ,''), ('uspp-paro-gamma.in',''), ('uspp-paro-k.in','')
 
 [pw_md/]
+program = PW
 inputs_args = ('md.in','1'), ('md_restart_verlet.in','22'), ('md-wfc_extrap1.in','1'), ('md-wfc_extrap2.in','2'), ('md-pot_extrap1.in','1')  ,('md-pot_extrap2.in','2')
 
 [pw_workflow_vc-relax_dos/]
@@ -170,7 +171,7 @@ inputs_args = ('scf.in', '1'), ('ph.in', '2'), ('scf.in', '1'), ('nscf.in', '1')
 
 [epw_metal/]
 program = EPW
-inputs_args = ('scf_epw.in', '1'), ('nscf_epw.in', '1'), ('epw1.in', '3'), ('epw2.in', '3'), ('epw3.in', '3'), ('epw4.in', '3')
+inputs_args = ('scf_epw.in', '1'), ('nscf_epw.in', '1'), ('epw1.in', '3'), ('epw2.in', '3'), ('epw3.in', '5'), ('epw4.in', '3'), ('epw5.in', '10'), ('epw6.in', '11')
 
 [epw_soc/]
 program = EPW
@@ -218,7 +219,7 @@ inputs_args = ('scf.in', '1'), ('ph.in', '2'), ('q2r.in', '4'), ('scf.in', '1'),
 
 [epw_2D/]
 program = EPW
-inputs_args = ('scf.in', '0'), ('ph.in', '2'), ('scf_epw.in', '0'), ('nscf_epw.in', '1'), ('epw1.in', '3'), ('epw2.in', '3'), ('epw3.in', '5'), ('epw4.in', '5'), ('epw5.in', '5'), ('epw6.in', '5')
+inputs_args = ('scf.in', '0'), ('ph.in', '2'), ('scf_epw.in', '0'), ('nscf_epw.in', '1'), ('epw1.in', '3'), ('epw2.in', '3'), ('epw3.in', '5'), ('epw3.in', '10'), ('epw4.in', '5'), ('epw5.in', '5'), ('epw6.in', '5'), ('epw7.in', '3'), ('epw8.in', '5')
 
 [epw_wfpt/]
 program = EPW
@@ -227,6 +228,9 @@ inputs_args = ('scf.in', '1'), ('ph.in', '2'), ('q2r.in', '4'), ('matdyn.in', '6
 ####[epw_scdm/]
 ####program = EPW
 ####inputs_args = ('scf.in', '1'), ('ph.in', '2'), ('scf.in', '1'), ('nscf.in', '1'), ('epw1.in', '3'), ('epw2.in', '3')
+[epw_tdbe/]
+program = EPW
+inputs_args = ('scf.in', '1'), ('ph.in', '2'), ('nscf.in', '1'), ('epw1.in', '3'),('epw2.in', '3'), ('epw3.in', '3') 
 
 [zg_conf/]
 program = ZG
@@ -312,6 +316,11 @@ inputs_args = ('scf_vdw.in', '1'), ('ppacf_fock.in', '2')
 program = IMAGE
 inputs_args = ('si.scf.in', '1'), ('si.ph.in', '2')
 
+[pioud/]
+program = PIOUD
+inputs_args = ('diamond_ceriotti.in',''),('diamond_pimd.in',''), ('diamond_verlet.in','')
+
+
 [pw_*/]
 program = PW
 
@@ -345,6 +354,9 @@ program = QEHeat_h2o_mol_t
 [image_*/]
 program = IMAGE
 
+[pioud_*/]
+program = PIOUD
+
 [oscdft_pw]
 program = OSCDFT
 inputs_args = ('nooscdft.in', '1'), ('view.in', '2 view.oscdft.in'), ('scf.in', '2 scf.oscdft.in'), ('relax.in', '2 scf.oscdft.in'), ('k.in', '2 k.oscdft.in'), ('normcons.in', '2 normcons.oscdft.in')
@@ -369,3 +381,4 @@ all_currents_all = QEHeat_*
 _default_ = pw_*?? cp_*?? ph_*?? epw_*?? tddfpt_*?? hp_*?? all_currents_*??
 kcw_all = kcw_*??
 oscdft_all = oscdft_pw oscdft_pp
+pioud_all = pioud*??

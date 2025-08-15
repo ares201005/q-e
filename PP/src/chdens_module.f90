@@ -112,7 +112,7 @@ SUBROUTINE chdens (plot_files,plot_num,nc)
   !   set the DEFAULT values
   !
   nfile         = 1
-  filepp(1)     = ' '
+  filepp(1)     = 'tmp.pp'
   weight(1)     = 1.0d0
   iflag         = 0
   radius        = 1.0d0
@@ -219,7 +219,6 @@ SUBROUTINE chdens (plot_files,plot_num,nc)
         WRITE(output_files(iplot),"(A,A)") TRIM(plot_files(iplot)), TRIM(fileout)
     ENDDO
   ENDIF
-
 
   ! check for iflag
 
@@ -330,7 +329,6 @@ SUBROUTINE chdens (plot_files,plot_num,nc)
      CALL fft_type_allocate ( dffts, at, bg, gcutms, intra_bgrp_comm, nyfft=nyfft )
   ENDIF
 
-
   ! Looping over output files to be written
   DO iplot=1, SIZE(output_files) 
 
@@ -354,11 +352,29 @@ SUBROUTINE chdens (plot_files,plot_num,nc)
     !
     DO ifile = 1, nfile
        !
+       IF (ionode) &
        CALL plot_io (filepp (ifile), title, nr1sxa, nr2sxa, nr3sxa, &
             nr1sa, nr2sa, nr3sa, nats, ntyps, ibravs, celldms, ats, gcutmsa, &
             duals, ecuts, idum, atms, ityps, zvs, taus, rhos, - 1)
+       CALL mp_bcast( nr1sxa, ionode_id, world_comm )
+       CALL mp_bcast( nr2sxa, ionode_id, world_comm )
+       CALL mp_bcast( nr3sxa, ionode_id, world_comm )
+       CALL mp_bcast( nr1sa, ionode_id, world_comm )
+       CALL mp_bcast( nr2sa, ionode_id, world_comm )
+       CALL mp_bcast( nr3sa, ionode_id, world_comm )
+       CALL mp_bcast( nats, ionode_id, world_comm )
+       CALL mp_bcast( ntyps, ionode_id, world_comm )
+       CALL mp_bcast( ibravs, ionode_id, world_comm )
+       CALL mp_bcast( celldms, ionode_id, world_comm )
+       CALL mp_bcast( gcutmsa, ionode_id, world_comm )
+       CALL mp_bcast( duals, ionode_id, world_comm )
+       CALL mp_bcast( ecuts, ionode_id, world_comm )
   
        IF (ifile==1.and.plot_num==-1) THEN
+          CALL mp_bcast( atms, ionode_id, world_comm )
+          CALL mp_bcast( ityps, ionode_id, world_comm )
+          CALL mp_bcast( zvs, ionode_id, world_comm )
+          CALL mp_bcast( taus, ionode_id, world_comm )
           atm=atms
           ityp=ityps
           zv=zvs
@@ -408,10 +424,10 @@ SUBROUTINE chdens (plot_files,plot_num,nc)
     IF ( (isostm_flag) .AND. ( (plot_num == -1) .OR. (plot_num == 5) ) ) THEN
        IF ( .NOT. (iflag == 2))&
           CALL errore ('chdens', 'isostm should have iflag = 2', 1)
+       IF (ionode) &
        CALL isostm_plot(rhor, dfftp%nr1x, dfftp%nr2x, dfftp%nr3x, &
              isovalue, heightmin, heightmax, direction)     
     END IF
-  
     
     !
     !    At this point we start the calculations, first we normalize the

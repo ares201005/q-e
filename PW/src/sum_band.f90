@@ -67,7 +67,6 @@ SUBROUTINE sum_band()
   COMPLEX(DP), ALLOCATABLE :: psic(:,:)
   !! Work space used for FFTs in this routine
   !
-  !
   CALL start_clock( 'sum_band' )
   !
   ALLOCATE( psic(dfftp%nnr,npol) )
@@ -163,7 +162,7 @@ SUBROUTINE sum_band()
     ENDIF
   ENDIF
 #if defined (__OSCDFT)
-  IF (use_oscdft) CALL oscdft_sum_band(oscdft_ctx)
+  IF (use_oscdft .AND. (oscdft_ctx%inp%oscdft_type==1)) CALL oscdft_sum_band(oscdft_ctx)
 #endif
   !
   ! ... for band parallelization: set band computed by this processor
@@ -487,12 +486,15 @@ SUBROUTINE sum_band()
           incr = 1
           !$acc enter data create(psic_nc)
        ELSE IF (xclib_dft_is('meta') .OR. lxdm) THEN
+          ! many_fft cannot be used with meta-GGA and XDM
           incr = 1
-          ALLOCATE( grad_psic(npwx,incr) )
-          !$acc enter data create(grad_psic)
        ELSE
           incr = many_fft
        ENDIF
+       IF (xclib_dft_is('meta') .OR. lxdm) THEN
+          ALLOCATE( grad_psic(npwx,incr) )
+          !$acc enter data create(grad_psic)
+       END IF
        !
        ALLOCATE( psicd(dffts%nnr*incr) )
        !$acc data create(psicd)
