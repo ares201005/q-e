@@ -273,7 +273,7 @@
     !!                           esigmar_all, esigmai_all, a_all, nbndfst, lower_bnd, &
     !!                           !************YZ*****************
     !!                           he_all, he_all2, he_ij,homega_all, homega_all2, &
-    !!                           hijomega, edosef,jdos,edos_all, vdos_all
+    !!                           hijomega, edosef,jdos, edos_all, vdos_all
     !!                           !************YZ*****************
     !! USE constants_epw, ONLY : kelvin2eV, ryd2mev, one, ryd2ev, two, zero, ci, eps8
     !! USE constants,     ONLY : pi

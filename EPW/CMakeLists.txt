@@ -62,6 +62,8 @@ set(sources
     src/tdbe_mod.f90
     src/tdbe_common.f90
     src/phph.f90
+    src/w90_plasmon.f90
+    src/relax_elec.f90
     )
 
 qe_add_library(qe_epw ${sources})

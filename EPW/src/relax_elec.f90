@@ -1,35 +1,30 @@
-  !                                                                            
-  ! Copyright (C) 2010-2016 Samuel Ponce', Roxana Margine, Carla Verdi, Feliciano Giustino  
-  ! Copyright (C) 2007-2009 Jesse Noffsinger, Brad Malone, Feliciano Giustino  
-  !                                                                            
-  ! This file is distributed under the terms of the GNU General Public         
-  ! License. See the file `LICENSE' in the root directory of the               
-  ! present distribution, or http://www.gnu.org/copyleft.gpl.txt .             
-  !                                                                            
+  !-----------------------------------------------------------------------
+  ! Written by Yu Zhang
+  !-----------------------------------------------------------------------
 
   !-----------------------------------------------------------------------
   SUBROUTINE relax_elec_new ( )
   !-----------------------------------------------------------------------
-  !! 
+  !!
   !-----------------------------------------------------------------------
   USE kinds,         ONLY : DP
   USE io_global,     ONLY : stdout
-  USE phcom,         ONLY : nmodes
-  USE epwcom,        ONLY : nbndsub, shortrange, &
-                            fsthick, ngaussw, degaussw, &
-                            wmin_specfun,wmax_specfun,nw_specfun, &
-                            eps_acustic, efermi_read, fermi_energy,&
-                            restart, restart_freq, &
-                            nomega, &
+  !! USE phcom,      ONLY : nmodes
+  USE input,         ONLY : nbndsub, shortrange,                    &
+                            fsthick, ngaussw, degaussw,             &
+                            wmin_specfun,wmax_specfun,nw_specfun,   &
+                            eps_acoustic, efermi_read, fermi_energy, &
+                            restart, restart_freq,                  &
+                            nomega,                                 &
                             rlx_dt, rlx_tmax,Epump,Th_cond, mobility
-  USE elph2,         ONLY : etf, ibndmin, ibndmax, nkqf, xqf, &
-                            epf17, wkf, nkf, wf, wqf, xkf, nkqtotf,&
-                            esigmar_all, esigmai_all, a_all,  &
-                            he_ij,he_all2, he_all, edosef, &
-                            edos_all, vdos_all,jdos  !ZY
-  USE transportcom,  ONLY : lower_bnd
+  USE global_var,    ONLY : etf, ibndmin, ibndmax, nkqf, xqf,       &
+                            epf17, wkf, nkf, wf, wqf, xkf, nkqtotf, &
+                            esigmar_all, esigmai_all, a_all, jdos2, &
+                            lower_bnd,                              &
+                            he_ij,he_all2, he_all, edosef,          &
+                            edos_all, vdos_all  !ZY
   USE control_flags, ONLY : iverbosity
-  USE constants_epw, ONLY : ryd2mev, one, ryd2ev, kelvin2eV, two, zero, hbar, pi
+  USE ep_constants,  ONLY : ryd2mev, one, ryd2ev, kelvin2eV, two, zero, hbar, pi
   USE mp,            ONLY : mp_barrier, mp_sum
   USE mp_global,     ONLY : inter_pool_comm
   USE mp_world,      ONLY : mpime
@@ -119,20 +114,20 @@
   DO iw = 1, nw_specfun
     !
     ww = wmin_specfun + dble (iw-1) * dw
-    feq(iw) = wgauss(-ww/eptemp, -99) 
-    fe(iw) = wgauss(-ww/eptemp, -99) 
+    feq(iw) = wgauss(-ww/eptemp, -99)
+    fe(iw) = wgauss(-ww/eptemp, -99)
     !
   ENDDO
 
 
   ! rescale the maximum value to 1.0
-  tmp = max( maxval(jdos(:,1)/edos_all),maxval(jdos(:,2)/edos_all) ) 
-  jdos = jdos/tmp 
+  tmp = max( maxval(jdos2(:,1)/edos_all),maxval(jdos2(:,2)/edos_all) )
+  jdos2 = jdos2/tmp
   IF (mpime.eq.ionode_id) THEN
     ! Write to file
     write(stdout,*) 'total hot e/h'
-    write(stdout,*) sum(jdos(:,1)), sum(jdos(:,2))
-    write(stdout,*) sum(jdos(:,1)/edos_all), sum(jdos(:,2)/edos_all)
+    write(stdout,*) sum(jdos2(:,1)), sum(jdos2(:,2))
+    write(stdout,*) sum(jdos2(:,1)/edos_all), sum(jdos2(:,2)/edos_all)
     open(666,file='jdos.dat',status='replace')
     open(667,file='vdos.dat',status='replace')
     write(666,'(A9,5A15)') 'energy','jdos-e', 'jdos-h','dos','f(t=0)', 'he(w)'
@@ -144,11 +139,11 @@
   do iw = 1, nw_specfun
      ww = wmin_specfun + dble(iw-1) * dw
      ! hot
-     dfe(iw) = jdos(iw,1) / edos_all(iw) * Epump - & ! electron
-               jdos(iw,2) / edos_all(iw) * Epump     ! hole
+     dfe(iw) = jdos2(iw,1) / edos_all(iw) * Epump - & ! electron
+               jdos2(iw,2) / edos_all(iw) * Epump     ! hole
      fe(iw) = fe(iw) + dfe(iw)
      IF (mpime.eq.ionode_id) THEN
-        write(666,'(f9.4, 5e16.7)') ww, jdos(iw,1), jdos(iw,2),edos_all(iw),& !dfe(iw),
+        write(666,'(f9.4, 5e16.7)') ww, jdos2(iw,1), jdos2(iw,2),edos_all(iw),& !dfe(iw),
                                    fe(iw), he_all(iw)
      ENDIF
   enddo
@@ -302,9 +297,9 @@
   subroutine dfedt(tt,np, dw, ebot, mobility, tl, Tenv, fe,dfe,dTl)
   USE kinds,         ONLY : DP
   USE io_global,     ONLY : stdout, ionode, ionode_id
-  USE constants_epw, ONLY : ryd2mev, one, ryd2ev, kelvin2eV, two, zero, pi, hbar, ci
-  USE epwcom,        ONLY : ngaussw, degaussw, eps_acustic,nomega, alpha_heat,Th_cond
-  uSE elph2,         ONLY : vdos_all,he_ij,he_all,he_all2,edosef,edos_all
+  USE ep_constants,  ONLY : ryd2mev, one, ryd2ev, kelvin2eV, two, zero, pi, hbar, ci
+  USE input,         ONLY : ngaussw, degaussw, eps_acoustic, nomega, alpha_heat,Th_cond
+  USE global_var,    ONLY : vdos_all,he_ij,he_all,he_all2,edosef,edos_all
   implicit none
   real(kind=dp), intent(in)  :: tt
   integer,       intent(in)  :: np
@@ -444,7 +439,7 @@
         !Ediff = dble(j-i) * dw
       
         if (Ediff < dw) cycle
-        if (Ediff < eps_acustic) cycle
+        if (Ediff < eps_acoustic) cycle
       
         nocc = wgauss(-Ediff/Tl,-99)      ! 1/(exp(x)+1)
         ! one - two * occ = [exp(x) - 1] / [exp(x) + 1]
@@ -575,8 +570,8 @@
   !-----------------------------------------------------------------------
   USE kinds,         ONLY : DP
   USE io_global,     ONLY : stdout, ionode, ionode_id
-  USE constants_epw, ONLY : ryd2mev, one, ryd2ev, kelvin2eV, two, zero, pi, ci, eps6, eps8
-  USE epwcom,        ONLY : ngaussw, degaussw, eps_acustic
+  USE ep_constants,  ONLY : ryd2mev, one, ryd2ev, kelvin2eV, two, zero, pi, ci, eps6, eps8
+  USE input,         ONLY : ngaussw, degaussw, eps_acoustic
   implicit none
   integer,       intent(in)  :: np
   real(kind=dp), intent(in)  :: dw, ebot
@@ -590,7 +585,7 @@
   heat_capacity = 0.0_dp
   do i = 1, np
     wq = ebot + (i-1) * dw
-    if (wq > eps_acustic) then
+    if (wq > eps_acoustic) then
        
        x = wq/Tl
        occ = wgauss(-x,-99)          ! 1/(exp(-x)+1)
@@ -621,7 +616,7 @@
   !-----------------------------------------------------------------------
   USE kinds,         ONLY : DP
   USE io_global,     ONLY : stdout
-  USE constants_epw, ONLY : ryd2mev, one, ryd2ev, kelvin2eV, two, zero, pi, ci, eps6, eps8
+  USE ep_constants,  ONLY : ryd2mev, one, ryd2ev, kelvin2eV, two, zero, pi, ci, eps6, eps8
   implicit none
   
   integer,       intent(in)    :: np
@@ -661,19 +656,19 @@
   !-----------------------------------------------------------------------
   USE kinds,         ONLY : DP
   USE io_global,     ONLY : stdout
-  USE io_epw,        ONLY : linewidth_elself
-  USE phcom,         ONLY : nmodes
-  USE epwcom,        ONLY : nbndsub, shortrange, &
-                            fsthick, eptemp, ngaussw, degaussw, &
-                            eps_acustic, efermi_read, fermi_energy,&
+  USE io_var,        ONLY : linewidth_elself
+  !! USE phcom,      ONLY : nmodes
+  USE input,         ONLY : nbndsub, shortrange, &
+                            fsthick, ngaussw, degaussw, &
+                            eps_acoustic, efermi_read, fermi_energy,&
                             restart, restart_freq
   USE pwcom,         ONLY : ef !, nelec, isk
-  USE elph2,         ONLY : etf, ibndmin, ibndmax, nkqf, xqf, &
-                            nkf, epf17, wf, wqf, xkf, nkqtotf, &
+  USE global_var,    ONLY : etf, ibndmin, ibndmax, nkqf, xqf,        &
+                            nkf, epf17, wf, wqf, xkf, nkqtotf,       &
+                            lower_bnd,                               &
                             sigmar_all, sigmai_all, sigmai_mode, zi_all, efnew
-  USE transportcom,  ONLY : lower_bnd
   USE control_flags, ONLY : iverbosity
-  USE constants_epw, ONLY : ryd2mev, one, ryd2ev, two, zero, pi, ci, eps6, eps8
+  USE ep_constants,  ONLY : ryd2mev, one, ryd2ev, two, zero, pi, ci, eps6, eps8
   USE mp,            ONLY : mp_barrier, mp_sum
   USE mp_global,     ONLY : inter_pool_comm
   USE mp_world,      ONLY : mpime
@@ -743,6 +738,7 @@
   !! Dirac delta for the imaginary part of $\Sigma$
   REAL(kind=DP) :: inv_wq
   !! $frac{1}{2\omega_{q\nu}}$ defined for efficiency reasons
+  REAL(kind=DP) :: eptemp
   REAL(kind=DP) :: inv_eptemp0
   !! Inverse of temperature define for efficiency reasons
   REAL(kind=DP) :: g2_tmp
@@ -766,6 +762,8 @@
   real(kind=dp), allocatable :: eig_k(:,:)
   real(kind=dp), allocatable :: xk_all(:,:)
   integer,       allocatable :: eeklist(:,:)
+
+  ! set eptemp TBA.
 
   ! 
   inv_eptemp0 = 1.0/eptemp

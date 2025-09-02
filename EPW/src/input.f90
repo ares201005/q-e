@@ -65,6 +65,8 @@
   !! output file for the deltavscf used as a fake perturbation to set phases
   CHARACTER(LEN = 80) :: fila2f
   !! input file containing eliashberg spectral function
+  CHARACTER(LEN = 80) :: restart_freq
+  !! xxx
   CHARACTER(LEN = 80) :: restart_filq
   !! input  file to restart from an exisiting q-file
   CHARACTER(LEN = 80) :: filirobj
@@ -344,7 +346,7 @@
   !!
   !!===========================================================================
   ! added by YZ for relaxation calculation
-  integer :: nomega     ! no. of steps used to calculated ph dos 
+  ! integer :: nomega     ! no. of steps used to calculated ph dos
   LOGICAL :: hot_relax  ! switch of relaxation dynamics,  default false
   LOGICAL :: calc_plasmon ! calculate plamson damping rate or not
   LOGICAL :: rlx_approx ! relaxtation time approximation, default false

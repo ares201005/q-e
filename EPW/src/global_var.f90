@@ -191,10 +191,11 @@
     ef0_fca(:),               &!  Fermi level for free carrier absorption
 
     !*****************************************!
-    ! ZY modification  
+    ! ZY modification
+    jdos2(:, :),           &!  j-DOS
     homega_all(:,:,:),      &!  !energy and k-point resolved e-ph coupling, Ref, xxx, ZY
     homega_all2(:,:,:),     &!  !energy and k-point resolved e-ph coupling, Ref, xxx, ZY
-    hijomega(:,:,:,:),       &!  !energy and k-point resolved e-ph coupling, (:,:,e,w)
+    hijomega(:,:,:,:),      &!  !energy and k-point resolved e-ph coupling, (:,:,e,w)
     edosef,                 &!  ! DOS of electron at fermi energy
     edos_all(:),            &!  ! DOS of electron
     vdos_all(:),            &!  ! DOS of phonon

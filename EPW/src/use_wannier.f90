@@ -51,7 +51,8 @@
                                eliashberg, meshnum, time_rev_U_plrn, lwfpt, ii_g,  &
                                start_mesh, ii_lscreen, isk_dummy, lopt_w2b,        &
                                explrn, gb_scattering, lfast_kmesh, epw_memdist,    &
-                               plot_explrn_e, plot_explrn_h, dos_tetra, a2f_iso
+                               plot_explrn_e, plot_explrn_h, dos_tetra, a2f_iso,   &
+                               hot_relax, calc_plasmon ! YZ
   USE control_flags,    ONLY : iverbosity
   USE noncollin_module, ONLY : noncolin
   USE ep_constants,     ONLY : ryd2ev, ryd2mev, one, two, zero, czero, cone,       &

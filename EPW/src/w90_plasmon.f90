@@ -1,11 +1,5 @@
-  !                                                                            
-  ! Copyright (C) 2010-2016 Samuel Ponce', Roxana Margine, Carla Verdi, Feliciano Giustino  
-  ! Copyright (C) 2007-2009 Jesse Noffsinger, Brad Malone, Feliciano Giustino  
-  !                                                                            
-  ! This file is distributed under the terms of the GNU General Public         
-  ! License. See the file `LICENSE' in the root directory of the               
-  ! present distribution, or http://www.gnu.org/copyleft.gpl.txt .             
-  !                                                                            
+  !-----------------------------------------------------------------------
+  ! Written by Yu Zhang
   !-----------------------------------------------------------------------
 
   !-----------------------------------------------------------------------
@@ -16,26 +10,26 @@
 !!    etf(:,:),               &!  interpolated eigenvalues (nbnd, nkqf)
 !!    etf_k(:,:),             &!  Saved interpolated KS eigenenergies for later used in q-parallelization (nbnd, nkqf)
 
-  USE kinds,      ONLY : dp, i4b
-  USE epwcom,     ONLY : nbndsub, rlx_approx,efermi_read, fermi_energy
-  USE phcom,      ONLY : nmodes
-  USE elph2,      ONLY : etf, etf_k, etf_ks,               &
+  USE kinds,        ONLY : dp, i4b
+  USE input,        ONLY : nbndsub, rlx_approx,efermi_read, fermi_energy
+!!  USE phcom,      ONLY : nmodes
+  USE global_var,   ONLY : etf, etf_k, etf_ks,             &
                          xqf, xkf, wkf,                    &
                          nkqf, nkf, nqf, nkqtotf, nqtotf,  &
-                         ibndmin, ibndmax,dmef,            & 
+                         ibndmin, ibndmax,                 &
                          epsi, efnew
-  
-  USE constants_epw, ONLY : one, two, zero, czero,         &
+
+  USE ep_constants, ONLY : one, two, zero, czero,          &
                             pi, twopi, hbar, hbarJ,        &
                             electron_SI, kb, ryd2ev,       &
-                            ci, cone, czero 
+                            ci, cone, czero
 !  USE mp,            ONLY : mp_barrier, mp_sum
-!  USE mp_global,     ONLY : inter_pool_comm, my_pool_id, npool 
+!  USE mp_global,     ONLY : inter_pool_comm, my_pool_id, npool
 !  USE mp_world,      ONLY : mpime
   USE io_global,     ONLY : stdout, ionode, ionode_id
-  
+
   implicit none
-  
+
   real(kind=dp), parameter :: lightSpeed=2.99792458e8_dp !m/s
   real(kind=dp), parameter :: hbarc=hbarJ*lightSpeed/electron_SI*1.e10_dp !ev*A
 
