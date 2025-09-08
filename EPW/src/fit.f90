@@ -2,9 +2,9 @@
    USE kinds,         ONLY : DP
    implicit none
    save
-   
+
    real(kind=dp), allocatable :: xdat(:),ydat(:)
-   
+
   end module fit
 
 

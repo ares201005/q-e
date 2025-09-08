@@ -64,6 +64,7 @@ set(sources
     src/phph.f90
     src/w90_plasmon.f90
     src/relax_elec.f90
+    src/fit.f90
     )
 
 qe_add_library(qe_epw ${sources})

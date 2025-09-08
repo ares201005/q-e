@@ -53,6 +53,7 @@
                                explrn, gb_scattering, lfast_kmesh, epw_memdist,    &
                                plot_explrn_e, plot_explrn_h, dos_tetra, a2f_iso,   &
                                hot_relax, calc_plasmon ! YZ
+  USE w90_plasmon,      ONLY : plasmon_main  !YZ
   USE control_flags,    ONLY : iverbosity
   USE noncollin_module, ONLY : noncolin
   USE ep_constants,     ONLY : ryd2ev, ryd2mev, one, two, zero, czero, cone,       &
@@ -1329,6 +1330,10 @@
           IF (plrn      ) CALL plrn_save_g_to_file(iq, epf17, wf)
           IF (prtgkk    ) CALL print_gkk(iq)
           IF (phonselfen) CALL selfen_phon_q(iqq, iq, totq)
+          IF (calc_plasmon.and.iqq==totq) then
+            write(*,*) 'plasmon_main', iqq
+            !CALL plasmon_main (iqq, iq, totq)
+          ENDIF
           IF (elecselfen .OR. specfun_el) CALL selfen_elec_q(iqq, iq, totq, first_cycle)
           IF (plselfen .AND. vme == 'dipole') CALL selfen_pl_q(iqq, iq, totq, first_cycle)
           IF (nest_fn   ) CALL nesting_fn_q(iqq, iq)
@@ -1485,7 +1490,7 @@
     !---------------------------------------------------------------------------------!
     !
     !! added by YZ for hot-carrier relaxation
-    IF (calc_plasmon) CALL plasmon_main
+    ! IF (calc_plasmon) CALL plasmon_main
 
     IF (hot_relax) CALL relax_elec_new()
     !---------------------------------------------------------------------------------!
