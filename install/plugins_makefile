@@ -166,13 +166,16 @@ configure-yambo:
 	echo "*** F90 is not defined; please define F90 or edit make.inc" ; exit 1 ; fi)
 	cd ../YAMBO ; \
 	./configure \
+	 --enable-dp=yes \
 	 --with-blas-libs="$(BLAS_LIBS)" \
 	 --with-lapack-libs="$(LAPACK_LIBS) $(BLAS_LIBS)" \
 	 --with-fft-libs="$(FFT_LIBS)" \
 	 --with-scalapack-libs="$(SCALAPACK_LIBS)" \
 	 --with-blacs-libs="$(SCALAPACK_LIBS)" \
 	 PFC="$(MPIF90)" \
-	 FC="$(F90)"
+	 FC="$(F90)" \
+	 FCFLAGS="$(FCFLAGS) -fallow-argument-mismatch" \
+	 FFLAGS="$(FFLAGS) -fallow-argument-mismatch"
 	touch ./configure-yambo
 
 yambo_clean:
