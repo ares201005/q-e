@@ -76,11 +76,11 @@ program dynmat
   USE environment, ONLY : environment_start, environment_end
   USE io_dyn_mat,  ONLY : read_dyn_mat_param, read_dyn_mat_header, &
                          read_dyn_mat, read_dyn_mat_tail
-  USE constants,   ONLY : amu_ry
+  USE constants,   ONLY : amu_ry, RY_TO_THZ, RY_TO_CMM1
   USE dynamical,  ONLY : dyn, m_loc, ityp, tau, zstar, dchi_dtau
   USE rigid,       ONLY : dyndiag, nonanal, remove_dyn_interaction
   ! USE cell_base,  only : omega        ! unit-cell volume [bohr^3] filled by readers
-  ! USE polariton_mod, only : build_polaritons
+  USE polariton_mod, only : build_polaritons
   !
   implicit none
   !
@@ -102,11 +102,13 @@ program dynmat
   !
   ! YZ: variables for phonon polaritons
   ! ---- polariton additions (by Yu Zhang) ----
+  integer :: nmodes, i, nout
   logical :: lcavity=.false., print_ir=.true.
   integer :: ncav=0, ios_pol=0
   character(len=8) :: cav_omega_units='cm-1'
   real(DP) :: eps_ext=1.0_DP
   real(DP), allocatable :: cav_omega(:), cav_lambda(:), cav_vmode(:), cav_pol(:,:)
+  real(DP), allocatable :: amass_atom(:), zreal(:,:), wpol(:), evec_pol(:,:), phot_frac(:)
   !
   namelist /POLARITON/ lcavity, ncav, cav_omega, cav_omega_units, cav_pol, &
                        cav_lambda, cav_vmode, eps_ext, print_ir
@@ -224,48 +226,44 @@ program dynmat
         OPEN (unit=iout,file=filout,status='unknown',form='formatted')
      END IF
      CALL writemodes(nat,q_,w2,z,iout)
-
      !
-     !! if (lcavity .and. ios_pol==0) then
-     !!    integer :: nmodes, i, nout, na
-     !!    real(DP), allocatable :: amass_atom(:), zreal(:,:), wpol(:), evec_pol(:,:), phot_frac(:)
-     !!    nmodes = 3*nat
-     !!    allocate(amass_atom(nat))
-     !!    do na=1,nat
-     !!       amass_atom(na) = amass(ityp(na))
-     !!    enddo
-     !!    allocate(zreal(nmodes,nmodes))
-     !!    do i=1,nmodes
-     !!       zreal(:,i) = real(z(:,i), kind=DP)   ! take real part (Γ phonons)
-     !!    enddo
-     !!    if (.not.allocated(cav_pol)) then
-     !!       allocate(cav_pol(3,max(1,ncav))); cav_pol=0.0_DP
-     !!       if (ncav>=1) cav_pol(:,1) = (/0.0_DP,0.0_DP,1.0_DP/)  ! default z-pol
-     !!    endif
-     !!    if (.not.allocated(cav_omega)) then
-     !!       allocate(cav_omega(max(1,ncav))); cav_omega=0.0_DP
-     !!    endif
-     !!    if (.not.allocated(cav_lambda)) then
-     !!       allocate(cav_lambda(max(1,ncav))); cav_lambda=0.0_DP
-     !!    endif
-     !!    if (.not.allocated(cav_vmode)) then
-     !!       allocate(cav_vmode(max(1,ncav))); cav_vmode=0.0_DP
-     !!    endif
-     !!    allocate(wpol(nmodes+ncav), evec_pol(nmodes+ncav,nmodes+ncav), phot_frac(nmodes+ncav))
-     !!    call build_polaritons( nat, nmodes, amass_atom, omega, w2, zreal, zstar, eps0, &
-     !!         ncav, cav_omega, cav_omega_units, cav_pol, cav_lambda, cav_vmode, eps_ext, &
-     !!         nout, wpol, evec_pol, phot_frac )
-     !!    write(iout,'(/,a)') ' ===== CAVITY–POLARITON SUMMARY (Γ) ====='
-     !!    write(iout,'(a)')    '  #    freq(cm-1)    photon_frac'
-     !!    do i=1,nout
-     !!       write(iout,'(i3,2x,f12.4,3x,f7.3)') i, wpol(i)*RY_TO_CMM1, phot_frac(i)
-     !!    enddo
-     !!    write(iout,'(a,/,a)') '  (frequencies converted from Ry to cm^-1 using RY_TO_CMM1)', &
-     !!                          '  Note: modes beyond 3*nat are mostly photonic.'
-     !!    deallocate(amass_atom, zreal, wpol, evec_pol, phot_frac)
-     !! endif
+     IF (lcavity .and. ios_pol==0) THEN
+        nmodes = 3*nat
+        ALLOCATE(amass_atom(nat))
+        do na=1,nat
+           amass_atom(na) = amass(ityp(na))
+        enddo
+        ALLOCATE(zreal(nmodes,nmodes))
+        do i=1,nmodes
+           zreal(:,i) = real(z(:,i), kind=DP)   ! take real part (Γ phonons)
+        enddo
+        if (.not.ALLOCATED(cav_pol)) then
+           ALLOCATE(cav_pol(3,max(1,ncav))); cav_pol=0.0_DP
+           if (ncav>=1) cav_pol(:,1) = (/0.0_DP,0.0_DP,1.0_DP/)  ! default z-pol
+        endif
+        if (.not.ALLOCATED(cav_omega)) then
+           ALLOCATE(cav_omega(max(1,ncav))); cav_omega=0.0_DP
+        endif
+        if (.not.ALLOCATED(cav_lambda)) then
+           ALLOCATE(cav_lambda(max(1,ncav))); cav_lambda=0.0_DP
+        endif
+        if (.not.ALLOCATED(cav_vmode)) then
+           ALLOCATE(cav_vmode(max(1,ncav))); cav_vmode=0.0_DP
+        endif
+        ALLOCATE(wpol(nmodes+ncav), evec_pol(nmodes+ncav,nmodes+ncav), phot_frac(nmodes+ncav))
+        CALL build_polaritons( nat, nmodes, amass_atom, omega, w2, zreal, zstar, eps0, &
+             ncav, cav_omega, cav_omega_units, cav_pol, cav_lambda, cav_vmode, eps_ext, &
+             nout, wpol, evec_pol, phot_frac )
+        write(iout,'(/,a)') ' ===== CAVITY–POLARITON SUMMARY (Γ) ====='
+        write(iout,'(a)')    '  #    freq(cm-1)    photon_frac'
+        do i=1,nout
+           WRITE(iout,'(i3,2x,f12.4,3x,f7.3)') i, wpol(i)*RY_TO_CMM1, phot_frac(i)
+        enddo
+        WRITE(iout,'(a,/,a)') '  (frequencies converted from Ry to cm^-1 using RY_TO_CMM1)', &
+                              '  Note: modes beyond 3*nat are mostly photonic.'
+        DEALLOCATE(amass_atom, zreal, wpol, evec_pol, phot_frac)
+     ENDIF
      !
-
      IF(iout .ne. 6) close(unit=iout)
      IF (fileig .ne. ' ') THEN
        OPEN (unit=15,file=TRIM(fileig),status='unknown',form='formatted')

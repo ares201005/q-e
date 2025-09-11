@@ -165,7 +165,8 @@ write_hub.o \
 zstar_eu.o \
 zstar_eu_us.o \
 dfpt_kernels.o \
-dump_drho.o
+dump_drho.o \
+polariton_mod.o
 
 RAMANOBJS =    \
 psyme2.o   \
