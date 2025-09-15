@@ -70,6 +70,7 @@ subroutine build_polaritons( &
         lam(:,al) = polvec(:,al)/normp * sqrt( 4.0_DP*pi / ( (vol_ang3*(ang2bohr**3)) * max(eps_ext,1.0D-12) ) )
      endif
   enddo
+  write(6, *) 'DEBUG-YZ: lam = ', lam
   !
   ! ---- mode effective dipoles dν (using Z* and eigenvectors) ----
   dnu = 0.0_DP

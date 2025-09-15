@@ -107,11 +107,18 @@ program dynmat
   integer :: ncav=0, ios_pol=0
   character(len=8) :: cav_omega_units='cm-1'
   real(DP) :: eps_ext=1.0_DP
-  real(DP), allocatable :: cav_omega(:), cav_lambda(:), cav_vmode(:), cav_pol(:,:)
-  real(DP), allocatable :: amass_atom(:), zreal(:,:), wpol(:), evec_pol(:,:), phot_frac(:)
+  real(DP), allocatable :: amass_atom(:)
+  real(DP), allocatable :: cav_omega(:)  ! cavity photon frequencies
+  real(DP), allocatable :: cav_vmode(:)  ! cavity volume
+  real(DP), allocatable :: cav_lambda(:) ! coupling strength (from mode volume)
+  real(DP), allocatable :: cav_pol(:,:)  ! polarization of cavity modes
+  real(DP), allocatable :: zreal(:,:)    ! phonon eigenvectors
+  real(DP), allocatable :: wpol(:)       ! polariton freqs
+  real(DP), allocatable :: evec_pol(:,:) ! polariton eigenvector
+  real(DP), allocatable :: phot_frac(:)  ! photon fraction for each mode
   !
-  namelist /POLARITON/ lcavity, ncav, cav_omega, cav_omega_units, cav_pol, &
-                       cav_lambda, cav_vmode, eps_ext, print_ir
+  namelist /POLARITON_CTL/ lcavity, ncav, cav_omega_units, eps_ext, print_ir
+  namelist /POLARITON/ cav_omega, cav_pol, cav_lambda, cav_vmode
   !
   namelist /input/ amass, asr, axis, fildyn, filout, filmol, filxsf, &
                    fileig, lperm, lplasma, q, loto_2d, remove_interaction_blocks
@@ -141,10 +148,6 @@ program dynmat
   CALL mp_bcast(ios, ionode_id, world_comm)
   CALL errore('dynmat', 'reading input namelist', ABS(ios))
   !
-  IF (ionode) read (5, POLARITON, iostat=ios_pol)
-  CALL mp_bcast(ios_pol, ionode_id, world_comm)
-  CALL errore('dynmat', 'reading polariton namelist', ABS(ios_pol))
-  !
   CALL mp_bcast(asr,ionode_id, world_comm)
   CALL mp_bcast(axis,ionode_id, world_comm)
   CALL mp_bcast(amass,ionode_id, world_comm)
@@ -155,6 +158,41 @@ program dynmat
   CALL mp_bcast(filxsf,ionode_id, world_comm)
   CALL mp_bcast(q,ionode_id, world_comm)
   CALL mp_bcast(remove_interaction_blocks, ionode_id, world_comm)
+  !
+  ! read polariton namelist
+  IF (ionode) read(5, nml=POLARITON_CTL, iostat=ios_pol)
+  IF (ios_pol /= 0) stop 'Error reading POLARITON_CTL namelist.'
+  write(6,*) "DEBUG-YZ: ios_pol = ", ios_pol, "ncav = ", ncav
+  CALL mp_bcast(ncav, ionode_id, world_comm)
+  CALL mp_bcast(lcavity, ionode_id, world_comm)
+  CALL mp_bcast(cav_omega_units, ionode_id, world_comm)
+  CALL mp_bcast(eps_ext, ionode_id, world_comm)
+  CALL mp_bcast(print_ir, ionode_id, world_comm)
+  !
+  IF (ncav > 0 .and. lcavity) THEN
+    if (.not.ALLOCATED(cav_pol)) then
+       ALLOCATE(cav_pol(3,max(1,ncav))); cav_pol=0.0_DP
+       if (ncav>=1) cav_pol(:,1) = (/0.0_DP,0.0_DP,1.0_DP/)  ! default z-pol
+    endif
+    if (.not.ALLOCATED(cav_omega)) then
+       ALLOCATE(cav_omega(max(1,ncav))); cav_omega=0.0_DP
+    endif
+    if (.not.ALLOCATED(cav_lambda)) then
+       ALLOCATE(cav_lambda(max(1,ncav))); cav_lambda=0.0_DP
+    endif
+    if (.not.ALLOCATED(cav_vmode)) then
+       ALLOCATE(cav_vmode(max(1,ncav))); cav_vmode=0.0_DP
+    endif
+    IF (ionode) read (5, POLARITON, iostat=ios_pol)
+    IF (ios_pol /= 0) stop 'Error reading POLARITON namelist.'
+    CALL errore('dynmat', 'reading polariton namelist', ABS(ios_pol))
+    CALL mp_bcast(cav_pol, ionode_id, world_comm)
+    CALL mp_bcast(cav_omega, ionode_id, world_comm)
+    CALL mp_bcast(cav_vmode, ionode_id, world_comm)
+    CALL mp_bcast(cav_lambda, ionode_id, world_comm)
+    WRITE(6, *) "cavity pol = ", cav_pol
+    WRITE(6, *) "cavity lambda = ", cav_lambda
+  ENDIF
   !
   IF (ionode) inquire(file=fildyn,exist=lread)
   CALL mp_bcast(lread, ionode_id, world_comm)
@@ -227,39 +265,25 @@ program dynmat
      END IF
      CALL writemodes(nat,q_,w2,z,iout)
      !
-     IF (lcavity .and. ios_pol==0) THEN
+     IF (lcavity .and. ncav > 0 .and. ios_pol==0) THEN
         nmodes = 3*nat
         ALLOCATE(amass_atom(nat))
         do na=1,nat
            amass_atom(na) = amass(ityp(na))
         enddo
         ALLOCATE(zreal(nmodes,nmodes))
-        do i=1,nmodes
-           zreal(:,i) = real(z(:,i), kind=DP)   ! take real part (Γ phonons)
-        enddo
-        if (.not.ALLOCATED(cav_pol)) then
-           ALLOCATE(cav_pol(3,max(1,ncav))); cav_pol=0.0_DP
-           if (ncav>=1) cav_pol(:,1) = (/0.0_DP,0.0_DP,1.0_DP/)  ! default z-pol
-        endif
-        if (.not.ALLOCATED(cav_omega)) then
-           ALLOCATE(cav_omega(max(1,ncav))); cav_omega=0.0_DP
-        endif
-        if (.not.ALLOCATED(cav_lambda)) then
-           ALLOCATE(cav_lambda(max(1,ncav))); cav_lambda=0.0_DP
-        endif
-        if (.not.ALLOCATED(cav_vmode)) then
-           ALLOCATE(cav_vmode(max(1,ncav))); cav_vmode=0.0_DP
-        endif
+
         ALLOCATE(wpol(nmodes+ncav), evec_pol(nmodes+ncav,nmodes+ncav), phot_frac(nmodes+ncav))
         CALL build_polaritons( nat, nmodes, amass_atom, omega, w2, zreal, zstar, eps0, &
              ncav, cav_omega, cav_omega_units, cav_pol, cav_lambda, cav_vmode, eps_ext, &
              nout, wpol, evec_pol, phot_frac )
-        write(iout,'(/,a)') ' ===== CAVITY–POLARITON SUMMARY (Γ) ====='
-        write(iout,'(a)')    '  #    freq(cm-1)    photon_frac'
+
+        write(6,'(/,a)') ' ===== CAVITY–POLARITON SUMMARY (Γ) ====='
+        write(6,'(a)')    '  #    freq(cm-1)    photon_frac'
         do i=1,nout
-           WRITE(iout,'(i3,2x,f12.4,3x,f7.3)') i, wpol(i)*RY_TO_CMM1, phot_frac(i)
+           WRITE(6,'(i3,2x,f12.4,3x,f7.3)') i, wpol(i)*RY_TO_CMM1, phot_frac(i)
         enddo
-        WRITE(iout,'(a,/,a)') '  (frequencies converted from Ry to cm^-1 using RY_TO_CMM1)', &
+        WRITE(6,'(a,/,a)') '  (frequencies converted from Ry to cm^-1 using RY_TO_CMM1)', &
                               '  Note: modes beyond 3*nat are mostly photonic.'
         DEALLOCATE(amass_atom, zreal, wpol, evec_pol, phot_frac)
      ENDIF
