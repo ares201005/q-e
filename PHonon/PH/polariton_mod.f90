@@ -64,13 +64,16 @@ subroutine build_polaritons( &
      normp = max(1.0D-14, sqrt(polvec(1,al)**2+polvec(2,al)**2+polvec(3,al)**2))
      if (lambda_in(al) > 0.0_DP) then
         lam(:,al) = polvec(:,al)/normp * lambda_in(al)
-     else
+     else if (vmode_ang3(al) > 0.0_DP) then
         ! λ = ê * sqrt(4π / (Veff * ε_ext)), with Veff in bohr^3
         vol_ang3 = max(1.0D-24, vmode_ang3(al))
         lam(:,al) = polvec(:,al)/normp * sqrt( 4.0_DP*pi / ( (vol_ang3*(ang2bohr**3)) * max(eps_ext,1.0D-12) ) )
+     else
+        ! if both lamda and voluem are zero, set lam zero
+        lam(:,al) = 0.0_DP
      endif
   enddo
-  write(6, *) 'DEBUG-YZ: lam = ', lam
+  ! WRITE(6, *) 'DEBUG-YZ: lam = ', lam
   !
   ! ---- mode effective dipoles dν (using Z* and eigenvectors) ----
   dnu = 0.0_DP
@@ -111,6 +114,7 @@ subroutine build_polaritons( &
   ! ---- Assemble symmetric K ----
   ndim = nmodes + ncav
   allocate(K(ndim,ndim)); K=0.0_DP
+  ! WRITE(6, *) "S = ", S
   ! K_QQ
   do nu=1,nmodes
      K(nu,nu) = w2(nu)
@@ -122,6 +126,11 @@ subroutine build_polaritons( &
         enddo
      enddo
   enddo
+  ! WRITE(6, *) "KQQ = ", K(1:nmodes, 1:nmodes)
+  !
+  ! TODO, currently we only considered the |0, 1> photon excitation space
+  ! make it general to arbitray truncation
+  !
   ! K_Qq (=K_qQ^T)
   do nu=1,nmodes
      do al=1,ncav
@@ -137,6 +146,7 @@ subroutine build_polaritons( &
         K(nmodes+al, nmodes+be) = wph(al)*IX(al,be)*wph(be)
      enddo
   enddo
+  ! WRITE(6, *) "Kqq = ", K(nmodes+1:nmodes+1, nmodes+1:nmodes+1)
   !
   ! ---- Diagonalize K (symmetric) ----
   allocate(eval(ndim))

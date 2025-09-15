@@ -162,7 +162,7 @@ program dynmat
   ! read polariton namelist
   IF (ionode) read(5, nml=POLARITON_CTL, iostat=ios_pol)
   IF (ios_pol /= 0) stop 'Error reading POLARITON_CTL namelist.'
-  write(6,*) "DEBUG-YZ: ios_pol = ", ios_pol, "ncav = ", ncav
+  ! WRITE(6,*) "DEBUG-YZ: ios_pol = ", ios_pol, "ncav = ", ncav
   CALL mp_bcast(ncav, ionode_id, world_comm)
   CALL mp_bcast(lcavity, ionode_id, world_comm)
   CALL mp_bcast(cav_omega_units, ionode_id, world_comm)
@@ -190,8 +190,8 @@ program dynmat
     CALL mp_bcast(cav_omega, ionode_id, world_comm)
     CALL mp_bcast(cav_vmode, ionode_id, world_comm)
     CALL mp_bcast(cav_lambda, ionode_id, world_comm)
-    WRITE(6, *) "cavity pol = ", cav_pol
-    WRITE(6, *) "cavity lambda = ", cav_lambda
+    ! WRITE(6, *) "DEBUG-YZ: cavity pol = ", cav_pol
+    ! WRITE(6, *) "DEBUG-YZ: cavity lambda = ", cav_lambda
   ENDIF
   !
   IF (ionode) inquire(file=fildyn,exist=lread)
@@ -250,6 +250,7 @@ program dynmat
         DO na=1,nat
            itau(na)=na
         END DO
+        ! WRITE(6,*) "DEBUG-YZ: Add nonanalytical part"
         CALL nonanal ( nat, nat, itau, eps0, q, zstar, omega, dyn )
         DEALLOCATE (itau)
      END IF
@@ -272,11 +273,11 @@ program dynmat
            amass_atom(na) = amass(ityp(na))
         enddo
         ALLOCATE(zreal(nmodes,nmodes))
-
         ALLOCATE(wpol(nmodes+ncav), evec_pol(nmodes+ncav,nmodes+ncav), phot_frac(nmodes+ncav))
-        CALL build_polaritons( nat, nmodes, amass_atom, omega, w2, zreal, zstar, eps0, &
+
+        CALL build_polaritons (nat, nmodes, amass_atom, omega, w2, zreal, zstar, eps0, &
              ncav, cav_omega, cav_omega_units, cav_pol, cav_lambda, cav_vmode, eps_ext, &
-             nout, wpol, evec_pol, phot_frac )
+             nout, wpol, evec_pol, phot_frac)
 
         write(6,'(/,a)') ' ===== CAVITY–POLARITON SUMMARY (Γ) ====='
         write(6,'(a)')    '  #    freq(cm-1)    photon_frac'
@@ -296,7 +297,7 @@ program dynmat
      ENDIF
      CALL writemolden (filmol, gamma, nat, atm, a0, tau, ityp, w2, z)
      CALL writexsf (filxsf, gamma, nat, atm, a0, at, tau, ityp, z)
-     IF (gamma) THEN 
+     IF (gamma) THEN
         CALL RamanIR (nat, omega, w2, z, zstar, eps0, dchi_dtau)
         IF (lperm .OR. lplasma) THEN
             CALL polar_mode_permittivity(nat,eps0,z,zstar,w2,omega, &
