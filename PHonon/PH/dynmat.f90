@@ -117,10 +117,10 @@ program dynmat
   real(DP), allocatable :: evec_pol(:,:) ! polariton eigenvector
   real(DP), allocatable :: phot_frac(:)  ! photon fraction for each mode
   !
-  namelist /POLARITON_CTL/ lcavity, ncav, cav_omega_units, eps_ext, print_ir
   namelist /POLARITON/ cav_omega, cav_pol, cav_lambda, cav_vmode
   !
   namelist /input/ amass, asr, axis, fildyn, filout, filmol, filxsf, &
+                   lcavity, ncav, cav_omega_units, eps_ext, print_ir, &
                    fileig, lperm, lplasma, q, loto_2d, remove_interaction_blocks
   !
   ! code is parallel-compatible but not parallel
@@ -159,15 +159,14 @@ program dynmat
   CALL mp_bcast(q,ionode_id, world_comm)
   CALL mp_bcast(remove_interaction_blocks, ionode_id, world_comm)
   !
-  ! read polariton namelist
-  IF (ionode) read(5, nml=POLARITON_CTL, iostat=ios_pol)
-  IF (ios_pol /= 0) stop 'Error reading POLARITON_CTL namelist.'
-  ! WRITE(6,*) "DEBUG-YZ: ios_pol = ", ios_pol, "ncav = ", ncav
+  ! variables for polaritons calculations
+  !
   CALL mp_bcast(ncav, ionode_id, world_comm)
   CALL mp_bcast(lcavity, ionode_id, world_comm)
   CALL mp_bcast(cav_omega_units, ionode_id, world_comm)
   CALL mp_bcast(eps_ext, ionode_id, world_comm)
   CALL mp_bcast(print_ir, ionode_id, world_comm)
+  ! WRITE(6,*) "DEBUG-YZ: ios_pol = ", ios_pol, "ncav = ", ncav
   !
   IF (ncav > 0 .and. lcavity) THEN
     if (.not.ALLOCATED(cav_pol)) then
