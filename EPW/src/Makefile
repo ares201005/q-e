@@ -82,6 +82,10 @@ tdbe_mod.o \
 tdbe_common.o \
 phph.o \
 utilities/screening.o \
+w90_plasmon.o \
+relax_elec.o \
+fit.o
+
 #default : epw
 
 PHOBJS = ../../PHonon/PH/libph.a
