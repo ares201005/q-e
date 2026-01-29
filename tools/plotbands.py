@@ -7,13 +7,42 @@ from typing import List, Tuple, Optional
 import numpy as np
 import matplotlib.pyplot as plt
 
+plt.rcParams.update({
+    "text.usetex": True,
+    "font.family": "serif",
+    "font.size": 20,
+    "axes.labelsize": 20,
+    "xtick.labelsize": 16,
+    "ytick.labelsize": 16,
+    "legend.fontsize": 20,
+    "axes.titlesize": 20
+})
+
 
 HEADER_RE = re.compile(r'&\s*plot\b.*?nbnd\s*=\s*(\d+)\s*,\s*nks\s*=\s*(\d+)', re.IGNORECASE)
 
-#plt.rcParams.update({
-#    "text.usetex": True,
-#    "font.family": "serif",
-#})
+# Define your high-symmetry points (in crystal/BZ coords)
+HIGH_SYM_POINTS = {
+    "G": np.array([0.0, 0.0, 0.0]),
+    "X": np.array([0.5, 0.0, 0.0]),
+    "S": np.array([0.5, 0.5, 0.0]),
+    "Y": np.array([0.0, 0.5, 0.0]),
+}
+
+def kpoint_label(kpoint, sym_points=HIGH_SYM_POINTS, tol=1e-4):
+    """
+    kpoint: iterable of length 3 (kx, ky, kz)
+    sym_points: dict{label: np.array([kx,ky,kz])}
+    tol: numerical tolerance for matching
+
+    Returns: label string (e.g. 'G', 'X', ...) or None if no match.
+    """
+    kvec = np.array(kpoint, dtype=float)
+    for label, ref in sym_points.items():
+        if np.linalg.norm(kvec - ref) < tol:
+            return label
+    return None
+
 
 def parse_bands_dat_qe(path: str) -> Tuple[np.ndarray, np.ndarray, int, int]:
     """
@@ -134,7 +163,8 @@ def parse_cell_arg(cell_str: str) -> np.ndarray:
 
 
 def cumulative_kdist(kfrac: np.ndarray,
-                     bmat: Optional[np.ndarray] = None) -> np.ndarray:
+                     bmat: Optional[np.ndarray] = None,
+                     cell: Optional[np.ndarray] = None) -> np.ndarray:
     """
     Compute cumulative distance along k-path.
     If bmat (3x3) is provided (rows are reciprocal vectors in 1/Å),
@@ -147,10 +177,22 @@ def cumulative_kdist(kfrac: np.ndarray,
     else:
         k_cart = kfrac
 
+    if cell is not None:
+        tmp = cell / cell[0,0]
+        ktmp = kfrac @ tmp
+
     diffs = np.diff(k_cart, axis=0)
     seg = np.linalg.norm(diffs, axis=1)
     s = np.concatenate([[0.0], np.cumsum(seg)])
-    return s
+
+    # get labels automatically
+    nk = len(kfrac)
+    labels = []
+    for i in range(nk):
+        k_label = kpoint_label(ktmp[i])
+        if k_label is not None: labels.append([s[i], k_label])
+
+    return s, labels
 
 
 def auto_breaks(kdist: np.ndarray) -> List[int]:
@@ -172,7 +214,7 @@ def auto_breaks(kdist: np.ndarray) -> List[int]:
 def main():
     ap = argparse.ArgumentParser(description="Plot QE band structure from bands.dat (&plot nbnd=..., nks=...) format.")
     ap.add_argument("--input", default="bands.dat", help="Path to bands.dat")
-    ap.add_argument("--save", default="bandstructure.png", help="Output figure filename")
+    ap.add_argument("--save", default="bandstructure.pdf", help="Output figure filename")
     ap.add_argument("--dpi", type=int, default=300, help="DPI for raster outputs")
     ap.add_argument("--fermi", type=float, default=0.0, help="Fermi level in eV (subtract from energies)")
     ap.add_argument("--emin", type=float, default=None, help="ymin (eV)")
@@ -191,8 +233,14 @@ def main():
     ap.add_argument("--node-indices", type=str, default=None,
                     help="Comma-separated integer indices of k-points where ticks should be placed.")
 
+    ap.add_argument("--figsize", type=float, nargs=2, metavar=("WIDTH", "HEIGHT"), default=(6, 4),
+                    help="Figure size in inches, e.g. --figsize 8 6")
+
     ap.add_argument("--linewidth", type=float, default=2.0, help="Line width")
     args = ap.parse_args()
+
+    prefix = args.input.split(".")[0]
+    args.save = f"{prefix}_" + args.save
 
     # Parse bands.dat
     kfrac, energies, nbnd, nks = parse_bands_dat_qe(args.input)
@@ -211,9 +259,10 @@ def main():
     elif args.cell:
         cell = parse_cell_arg(args.cell)
         bmat = recip_from_cell(cell)
+    # print("bmat = ", bmat)
 
     # Compute cumulative k-distance
-    kdist = cumulative_kdist(kfrac, bmat=bmat)
+    kdist, tick_poslabels = cumulative_kdist(kfrac, bmat=bmat, cell=cell)
     x_label = r"$k$ (1/Å)" if bmat is not None else "k (fractional units)"
 
     # Fermi shift
@@ -225,7 +274,7 @@ def main():
     for ib in range(nbnd):
         ax.plot(kdist, energies[ib, :], linewidth=args.linewidth)
 
-    ax.set_xlabel(x_label)
+    # ax.set_xlabel(x_label)
     ax.set_ylabel("Energy (eV)")
     ax.grid(True, which="both", linestyle="-", alpha=0.3)
 
@@ -244,6 +293,8 @@ def main():
             tick_positions = [kdist[i] for i in idx if 0 <= i < len(kdist)]
         except Exception:
             raise SystemExit("Failed to parse --node-indices. Provide comma-separated integers.")
+    elif len(tick_poslabels) > 0:
+        tick_positions = [label[0] for label in tick_poslabels]
     else:
         # Auto-detect large jumps
         idx = auto_breaks(kdist)
@@ -254,6 +305,11 @@ def main():
         if len(tick_labels) != len(tick_positions):
             print("Warning: number of labels != number of tick positions; labels will be ignored.")
             tick_labels = None
+    elif len(tick_poslabels) > 0:
+        tick_labels = [label[1] for label in tick_poslabels]
+
+    print("tick_positions =", tick_positions)
+    print("tick_labels    =", tick_labels)
 
     # Draw separators and xticks
     xmin, xmax = float(np.min(kdist)), float(np.max(kdist))
@@ -265,6 +321,8 @@ def main():
             ax.set_xticks(tick_positions)
             ax.set_xticklabels(tick_labels)
 
+    # x-limit
+    ax.set_xlim(xmin, xmax)
     # y-limits
     if args.emin is not None or args.emax is not None:
         ymin = args.emin if args.emin is not None else float(np.nanmin(energies)) - 0.5
@@ -277,7 +335,7 @@ def main():
 
     fig.tight_layout()
     ext = os.path.splitext(args.save)[1].lower()
-    if ext in [".png", ".jpg", ".jpeg", ".tif", ".tiff"]:
+    if ext in [".pdf", ".png", ".jpg", ".jpeg", ".tif", ".tiff"]:
         fig.savefig(args.save, dpi=args.dpi, bbox_inches="tight")
     else:
         fig.savefig(args.save, bbox_inches="tight")

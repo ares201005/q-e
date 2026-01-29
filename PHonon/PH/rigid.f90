@@ -280,6 +280,7 @@ subroutine nonanal(nat, nat_blk, itau_blk, epsil, q, zeu, omega, dyn )
         q(2)*(epsil(2,1)*q(1)+epsil(2,2)*q(2)+epsil(2,3)*q(3))+    &
         q(3)*(epsil(3,1)*q(1)+epsil(3,2)*q(2)+epsil(3,3)*q(3)))
  !
+write(6,*) "q in nonanal is:", q(1), q(2), q(3)
 !print*, q(1), q(2), q(3)
  if (qeq < 1.d-8) then
     write(6,'(5x,"A direction for q was not specified:", &

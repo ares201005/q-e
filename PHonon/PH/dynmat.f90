@@ -249,7 +249,7 @@ program dynmat
         DO na=1,nat
            itau(na)=na
         END DO
-        ! WRITE(6,*) "DEBUG-YZ: Add nonanalytical part"
+        WRITE(6,*) "DEBUG-YZ: Add nonanalytical part"
         CALL nonanal ( nat, nat, itau, eps0, q, zstar, omega, dyn )
         DEALLOCATE (itau)
      END IF
@@ -278,7 +278,7 @@ program dynmat
              ncav, cav_omega, cav_omega_units, cav_pol, cav_lambda, cav_vmode, eps_ext, &
              nout, wpol, evec_pol, phot_frac)
 
-        write(6,'(/,a)') ' ===== CAVITY–POLARITON SUMMARY (Γ) ====='
+        write(6,'(/,a)') ' ===== CAVITY Phonon POLARITON SUMMARY  ====='
         write(6,'(a)')    '  #    freq(cm-1)    photon_frac'
         do i=1,nout
            WRITE(6,'(i3,2x,f12.4,3x,f7.3)') i, wpol(i)*RY_TO_CMM1, phot_frac(i)

@@ -1,6 +1,6 @@
 !-------------------------------------------------------------------------------
-!  Phonon–cavity coupling for dynmat.x (Γ-point phonon-polaritons)
-!    —  minimal post-DFPT module (CBOA / linear response)
+!  Phonon-cavity coupling for dynmat.x (\Gamma-point phonon-polaritons)
+!   minimal post-DFPT module (CBOA / linear response)
 !  Author: Yu Zhang @ LANL
 !-------------------------------------------------------------------------------
 module polariton_mod
@@ -25,7 +25,7 @@ subroutine build_polaritons( &
   character(len=*), intent(in) :: omega_units                   ! 'Ry','THz','cm-1','meV','eV'
   real(DP), intent(in) :: polvec(3,ncav)                        ! unit polarization vectors
   real(DP), intent(in) :: lambda_in(ncav)                       ! optional direct λ (Gaussian a.u.), <=0 -> build from Vmode
-  real(DP), intent(in) :: vmode_ang3(ncav)                      ! effective mode volumes [Å^3] (optional)
+  real(DP), intent(in) :: vmode_ang3(ncav)                      ! effective mode volumes [] (optional)
   real(DP), intent(in) :: eps_ext                               ! background dielectric of cavity
   integer, intent(out) :: nout
   real(DP), intent(out) :: wpol(nmodes+ncav)                    ! polariton freqs (Ry)
@@ -54,18 +54,18 @@ subroutine build_polaritons( &
      wph(al) = omega_in(al)*convw
   enddo
   !
-  ! ---- χ from ε∞ : χ = (ε∞ - I) * Ω_cell / (4π)  (Gaussian a.u.) ----
+  ! ---- (Gaussian a.u.) ----
   I3 = 0.0_DP; do a=1,3; I3(a,a)=1.0_DP; enddo
   chi = (epsinf - I3) * (vol_bohr3/(4.0_DP*pi))
   !
-  ! ---- cavity couplings λ ----
+  ! ---- cavity couplings \lambda ----
   ang2bohr = 1.0_DP/BOHR_RADIUS_ANGS
   do al=1,ncav
      normp = max(1.0D-14, sqrt(polvec(1,al)**2+polvec(2,al)**2+polvec(3,al)**2))
      if (lambda_in(al) > 0.0_DP) then
         lam(:,al) = polvec(:,al)/normp * lambda_in(al)
      else if (vmode_ang3(al) > 0.0_DP) then
-        ! λ = ê * sqrt(4π / (Veff * ε_ext)), with Veff in bohr^3
+        ! \lambda =\vec{e} * sqrt(4\pi/ (Veff * \varepsilon_{ext})), with Veff in bohr^3
         vol_ang3 = max(1.0D-24, vmode_ang3(al))
         lam(:,al) = polvec(:,al)/normp * sqrt( 4.0_DP*pi / ( (vol_ang3*(ang2bohr**3)) * max(eps_ext,1.0D-12) ) )
      else
@@ -73,9 +73,9 @@ subroutine build_polaritons( &
         lam(:,al) = 0.0_DP
      endif
   enddo
-  ! WRITE(6, *) 'DEBUG-YZ: lam = ', lam
+  WRITE(6, *) 'DEBUG-YZ: lam = ', lam
   !
-  ! ---- mode effective dipoles dν (using Z* and eigenvectors) ----
+  ! ---- mode effective dipoles (using Z* and eigenvectors) ----
   dnu = 0.0_DP
   do nu=1,nmodes
      i=0
@@ -89,8 +89,9 @@ subroutine build_polaritons( &
         enddo
      enddo
   enddo
+  WRITE(6,*) "DEBUG-YZ: dnu = ", dnu
   !
-  ! ---- X = λ^T χ λ  and  S = λ·d ----
+  ! ---- X = \lambda^T \chi \lambda
   X = 0.0_DP
   do al=1,ncav
      do be=1,ncav
@@ -102,6 +103,9 @@ subroutine build_polaritons( &
   IX = X
   do al=1,ncav; IX(al,al)=IX(al,al)+1.0_DP; enddo
   call inv_spd(IX, ncav, info)   ! (I+X)^{-1} (SPD expected)
+  WRITE(6, *) "DEBUG-YZ: X = ", X
+  WRITE(6, *) "DEBUG-YZ: IX = ", IX
+  !
   if (info /= 0) stop 'polariton_mod: inversion failed'
   !
   S = 0.0_DP
@@ -110,11 +114,13 @@ subroutine build_polaritons( &
         S(nu,al) = lam(1,al)*dnu(1,nu) + lam(2,al)*dnu(2,nu) + lam(3,al)*dnu(3,nu)
      enddo
   enddo
+  WRITE(6,*) "S = ", S
+
   !
   ! ---- Assemble symmetric K ----
   ndim = nmodes + ncav
   allocate(K(ndim,ndim)); K=0.0_DP
-  ! WRITE(6, *) "S = ", S
+  WRITE(6, *) "S = ", S
   ! K_QQ
   do nu=1,nmodes
      K(nu,nu) = w2(nu)
@@ -125,8 +131,9 @@ subroutine build_polaritons( &
            enddo
         enddo
      enddo
+     WRITE(6, '(A, I5, e15.7)') "KQQ(i,i) = ", nu, K(nu, nu)
   enddo
-  ! WRITE(6, *) "KQQ = ", K(1:nmodes, 1:nmodes)
+  !WRITE(6, *) "KQQ = ", K(1:nmodes, 1:nmodes)
   !
   ! TODO, currently we only considered the |0, 1> photon excitation space
   ! make it general to arbitray truncation
@@ -138,15 +145,18 @@ subroutine build_polaritons( &
            K(nu, nmodes+al) = K(nu, nmodes+al) - S(nu,be)*IX(be,al)*wph(al)
            K(nmodes+al, nu) = K(nu, nmodes+al)
         enddo
+     WRITE(6, '(A, 2I5, e15.7)') "KQq(i,i) = ", nu, al, K(nu, nmodes+al)
      enddo
   enddo
+  ! WRITE(6, *) "KQq = ", K(1:nmodes, nmodes+1:nmodes+ncav)
   ! K_qq
   do al=1,ncav
      do be=1,ncav
         K(nmodes+al, nmodes+be) = wph(al)*IX(al,be)*wph(be)
      enddo
+     WRITE(6, '(A, I5, e15.7)') "Kqq(i,i) = ", al, K(nmodes+al, nmodes+al)
   enddo
-  ! WRITE(6, *) "Kqq = ", K(nmodes+1:nmodes+1, nmodes+1:nmodes+1)
+  !WRITE(6, *) "Kqq = ", K(nmodes+1:nmodes+1, nmodes+1:nmodes+1)
   !
   ! ---- Diagonalize K (symmetric) ----
   allocate(eval(ndim))
@@ -156,8 +166,10 @@ subroutine build_polaritons( &
   if (info /= 0) stop 'polariton_mod: diagonalization failed'
   !
   nout = ndim
+  write(6,*) " Eigenvalue of dynamical matrix K"
   do i=1,ndim
      wpol(i) = sqrt(max(0.0_DP, eval(i)))
+     write(6, '(I5, e15.7)') i, eval(i)
   enddo
   evec_pol(:,:) = K(:,:)     ! eigenvectors returned in K
   !
@@ -206,7 +218,7 @@ subroutine construct_polariton_dynmat(nat, nmodes, ncav, amass_atom, w2, zstar, 
   real(DP) :: wph(ncav), S(nmodes,ncav), X(ncav,ncav), IX(ncav,ncav)
 
   ndim = nmodes + ncav
-  ! ---- mode effective dipoles dν (using Z* and eigenvectors) ----
+  ! ---- mode effective dipoles (using Z* and eigenvectors) ----
   dnu = 0.0_DP
   do nu=1,nmodes
      i=0
@@ -245,7 +257,7 @@ subroutine construct_polariton_dynmat(nat, nmodes, ncav, amass_atom, w2, zstar, 
   enddo
   !
   ! ---- Assemble symmetric K ----
-  ! WRITE(6, *) "S = ", S
+  WRITE(6, *) "S = ", S
   ! K_QQ
   do nu=1,nmodes
      K(nu,nu) = w2(nu)
@@ -257,7 +269,7 @@ subroutine construct_polariton_dynmat(nat, nmodes, ncav, amass_atom, w2, zstar, 
         enddo
      enddo
   enddo
-  ! WRITE(6, *) "KQQ = ", K(1:nmodes, 1:nmodes)
+  WRITE(6, *) "KQQ = ", K(1:nmodes, 1:nmodes)
   !
   ! TODO, currently we only considered the |0, 1> photon excitation space
   ! make it general to arbitray truncation
@@ -277,7 +289,7 @@ subroutine construct_polariton_dynmat(nat, nmodes, ncav, amass_atom, w2, zstar, 
         K(nmodes+al, nmodes+be) = wph(al)*IX(al,be)*wph(be)
      enddo
   enddo
-  ! WRITE(6, *) "Kqq = ", K(nmodes+1:nmodes+1, nmodes+1:nmodes+1)
+  WRITE(6, *) "Kqq = ", K(nmodes+1:nmodes+1, nmodes+1:nmodes+1)
 end subroutine construct_polariton_dynmat
 
 
@@ -332,7 +344,6 @@ subroutine build_twisted_polaritons( &
 
   ! compute the phonon-polariton of twisted bi-layer (or by-slab)
   ! TBA
-  ! ---- χ from ε∞ : χ = (ε∞ - I) * Ω_cell / (4π)  (Gaussian a.u.) ----
   I3 = 0.0_DP; do a=1,3; I3(a,a)=1.0_DP; enddo
   chi = (epsinf - I3) * (vol_bohr3/(4.0_DP*pi))
   !
@@ -343,7 +354,7 @@ subroutine build_twisted_polaritons( &
      if (lambda_in(al) > 0.0_DP) then
         lam(:,al) = polvec(:,al)/normp * lambda_in(al)
      else if (vmode_ang3(al) > 0.0_DP) then
-        ! λ = ê * sqrt(4π / (Veff * ε_ext)), with Veff in bohr^3
+        ! \lambda = \ver{e} \cdot sqrt{4pi} / (Veff \varepsilon_{\mathrm{ext}} with Veff in bohr^3
         vol_ang3 = max(1.0D-24, vmode_ang3(al))
         lam(:,al) = polvec(:,al)/normp * sqrt( 4.0_DP*pi / ( (vol_ang3*(ang2bohr**3)) * max(eps_ext,1.0D-12) ) )
      else

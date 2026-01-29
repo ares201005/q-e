@@ -7,9 +7,23 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 
+# Enable LaTeX for matplotlib
+plt.rcParams.update({
+    "text.usetex": True,
+    "font.family": "serif",
+    "font.serif": ["Times New Roman"],
+    "font.size": 20,
+    "axes.labelsize": 20,
+    "xtick.labelsize": 16,
+    "ytick.labelsize": 16,
+    "legend.fontsize": 16,
+    "axes.titlesize": 20
+})
+
+
 def pretty_label(s: str) -> str:
     mapping = {
-        'G':'Γ','Gamma':'Γ','GAMMA':'Γ',
+        'G':'G','Gamma':'G','GAMMA':'G',
         'M':'M','K':'K','A':'A','L':'L','H':'H','X':'X','Y':'Y','Z':'Z'
     }
     return mapping.get(s, s)
@@ -121,7 +135,7 @@ def make_ticks(x, segments, labels):
 def plot_bands(x, w, tick_positions, tick_labels, ends, title=None, unit='cm$^{-1}$', outfile=None, show=True):
     plt.figure(figsize=(6.2, 4.6))
     for imode in range(w.shape[1]):
-        plt.plot(x, w[:, imode], lw=2.0)
+        plt.plot(x, w[:, imode], lw=3.0)
     for idx in ends[:-1]:
         plt.axvline(x=x[idx], linestyle='-', linewidth=0.6)
     plt.xticks(tick_positions, tick_labels)
@@ -140,7 +154,7 @@ def main():
     ap = argparse.ArgumentParser(description="Plot phonon band structure from QE matdyn flfrq.")
     ap.add_argument('--freq', required=True, help="Path to matdyn flfrq (bands) file")
     ap.add_argument('--segments', nargs='+', type=int, required=True, help="Points per path segment, e.g. 60 60 60")
-    ap.add_argument('--labels',   nargs='+', required=True, help="Vertex labels; length = segments+1 (use G for Γ)")
+    ap.add_argument('--labels',   nargs='+', required=True, help="Vertex labels; length = segments+1 (use G for Gamma)")
     ap.add_argument('--unit', default=None, help="Override y-axis unit (e.g., THz)")
     ap.add_argument('--title', default=None)
     ap.add_argument('--outfile', default=None)
