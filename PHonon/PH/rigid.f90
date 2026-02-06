@@ -280,8 +280,8 @@ subroutine nonanal(nat, nat_blk, itau_blk, epsil, q, zeu, omega, dyn )
         q(2)*(epsil(2,1)*q(1)+epsil(2,2)*q(2)+epsil(2,3)*q(3))+    &
         q(3)*(epsil(3,1)*q(1)+epsil(3,2)*q(2)+epsil(3,3)*q(3)))
  !
-write(6,*) "q in nonanal is:", q(1), q(2), q(3)
-!print*, q(1), q(2), q(3)
+ write(6,"(A18, 3f10.4)") "q in nonanal is:", q(1), q(2), q(3)
+ write(6,"(A18, f10.4)")  "qeq is:", qeq
  if (qeq < 1.d-8) then
     write(6,'(5x,"A direction for q was not specified:", &
       &          "TO-LO splitting will be absent")')
@@ -304,7 +304,7 @@ write(6,*) "q in nonanal is:", q(1), q(2), q(3)
        do i = 1,3
           do j = 1,3
              dyn(i,j,na,nb) = dyn(i,j,na,nb)+ fpi*e2*zag(i)*zbg(j)/qeq/omega
-!             print*, zag(i),zbg(j),qeq, fpi*e2*zag(i)*zbg(j)/qeq/omega
+             !write(6, *) zag(i), zbg(j), dyn(i,j,na,nb), fpi*e2*zag(i)*zbg(j)/qeq/omega
           end do
        end do
     end do

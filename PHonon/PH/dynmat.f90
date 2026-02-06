@@ -274,6 +274,10 @@ program dynmat
         ALLOCATE(zreal(nmodes,nmodes))
         ALLOCATE(wpol(nmodes+ncav), evec_pol(nmodes+ncav,nmodes+ncav), phot_frac(nmodes+ncav))
 
+        ! new function to compute the phonon-polariton dynamical matrix, TBA
+        ! call new_phonon_polariton_dyn( nat, nat, itau, eps0, q, zstar, omega, dyn):
+
+
         CALL build_polaritons (nat, nmodes, amass_atom, omega, w2, zreal, zstar, eps0, &
              ncav, cav_omega, cav_omega_units, cav_pol, cav_lambda, cav_vmode, eps_ext, &
              nout, wpol, evec_pol, phot_frac)

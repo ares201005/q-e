@@ -9,6 +9,83 @@ module polariton_mod
   implicit none
 contains
 
+
+subroutine phonon_polariton_nonanal(nat, nat_blk, itau_blk, epsil, q, zeu, omega, dyn, &
+    ncav, omega_in, polvec, lambda_in, wpol, evec_pol, phot_frac)
+
+  !-----------------------------------------------------------------------
+  !     add the nonanalytical term with coupling to photon
+  !
+  use kinds, only: dp
+  use constants, only: pi, fpi, e2
+ implicit none
+ integer, intent(in) :: nat, nat_blk, itau_blk(nat)
+ !  nat: number of atoms in the cell (in the supercell in the case
+ !       of a dyn.mat. constructed in the mass approximation)
+ !  nat_blk: number of atoms in the original cell (the same as nat if
+ !       we are not using the mass approximation to build a supercell)
+ !  itau_blk(na): atom in the original cell corresponding to
+ !                atom na in the supercell
+ !
+ complex(DP), intent(inout) :: dyn(3,3,nat,nat) ! dynamical matrix
+ real(DP), intent(in) :: q(3),  &! polarization vector
+      &       epsil(3,3),     &! dielectric constant tensor
+      &       zeu(3,3,nat_blk),   &! effective charges tensor
+      &       omega            ! unit cell volume
+ !
+ integer, intent(in) :: ncav
+ real(DP), intent(in) :: omega_in(ncav)                     ! photon freq (user units)
+ real(DP), intent(in) :: polvec(3,ncav)                     ! unit polarization vectors
+ real(DP), intent(in) :: lambda_in(ncav)                    ! optional direct lambda (Gaussian a.u.), <=0 -> build from Vmode
+ real(DP), intent(out) :: wpol(3*nat + ncav)                ! polariton freqs (Ry)
+ real(DP), intent(out) :: evec_pol(3*nat+ncav, 3*nat+ncav)  ! polariton eigenvectors (dimensionless)
+ real(DP), intent(out) :: phot_frac(3*nat+ncav)             ! photon fraction per mode
+ !
+ ! local variables
+ !
+ real(DP) zag(3),zbg(3),  &! eff. charges  times g-vector
+      &       qeq              !  <q| epsil | q>
+ integer na,nb,nc,           &! counters on atoms
+      &  na_blk,nb_blk,      &! as above for the original cell
+      &  i,j                  ! counters on cartesian coordinates
+ !
+ qeq = (q(1)*(epsil(1,1)*q(1)+epsil(1,2)*q(2)+epsil(1,3)*q(3))+    &
+        q(2)*(epsil(2,1)*q(1)+epsil(2,2)*q(2)+epsil(2,3)*q(3))+    &
+        q(3)*(epsil(3,1)*q(1)+epsil(3,2)*q(2)+epsil(3,3)*q(3)))
+ !
+ write(6, *) "q in phonon_polariton_nonanal is:", q(1), q(2), q(3)
+
+ !
+ do na = 1,nat
+    na_blk = itau_blk(na)
+    do nc = 1, ncav
+
+       do i=1,3
+          !
+          zag(i) = q(1)*zeu(1,i,na_blk) +  q(2)*zeu(2,i,na_blk) + &
+                   q(3)*zeu(3,i,na_blk)
+          ! for cavity
+          zbg(i) = 0.0 ! TBA.
+
+       enddo
+       !
+       ! phonon-photon interaction term
+       do i = 1,3
+          do j = 1,3
+          end do
+       end do
+       !
+    end do
+ end do
+ ! photon term
+ do i = 1, ncav
+
+ enddo
+ !
+ return
+
+end subroutine phonon_polariton_nonanal
+
 subroutine build_polaritons( &
    nat, nmodes, amass_atom, vol_bohr3, w2, z_in, zstar, epsinf, &
    ncav, omega_in, omega_units, polvec, lambda_in, vmode_ang3, eps_ext, &
@@ -24,7 +101,7 @@ subroutine build_polaritons( &
   real(DP), intent(in) :: omega_in(ncav)                        ! photon freq (user units)
   character(len=*), intent(in) :: omega_units                   ! 'Ry','THz','cm-1','meV','eV'
   real(DP), intent(in) :: polvec(3,ncav)                        ! unit polarization vectors
-  real(DP), intent(in) :: lambda_in(ncav)                       ! optional direct λ (Gaussian a.u.), <=0 -> build from Vmode
+  real(DP), intent(in) :: lambda_in(ncav)                       ! optional direct lambda (Gaussian a.u.), <=0 -> build from Vmode
   real(DP), intent(in) :: vmode_ang3(ncav)                      ! effective mode volumes [] (optional)
   real(DP), intent(in) :: eps_ext                               ! background dielectric of cavity
   integer, intent(out) :: nout
@@ -34,7 +111,7 @@ subroutine build_polaritons( &
   !---------------- locals ----------------
   integer :: i, j, iat, a, b, nu, mu, al, be, ndim, info, lwork
   real(DP) :: pi, ang2bohr, vol_ang3, convw, normp
-  real(DP) :: I3(3,3), chi(3,3), lam(3,ncav)
+  real(DP) :: qeq, I3(3,3), chi(3,3), lam(3,ncav)
   real(DP) :: wph(ncav), S(nmodes,ncav), X(ncav,ncav), IX(ncav,ncav)
   real(DP), allocatable :: K(:,:), work(:), eval(:)
   real(DP) :: dnu(3,nmodes), mhalf
@@ -56,7 +133,12 @@ subroutine build_polaritons( &
   !
   ! ---- (Gaussian a.u.) ----
   I3 = 0.0_DP; do a=1,3; I3(a,a)=1.0_DP; enddo
+  !
   chi = (epsinf - I3) * (vol_bohr3/(4.0_DP*pi))
+  !
+  !qeq = (q(1)*(epsil(1,1)*q(1)+epsil(1,2)*q(2)+epsil(1,3)*q(3))+    &
+  !       q(2)*(epsil(2,1)*q(1)+epsil(2,2)*q(2)+epsil(2,3)*q(3))+    &
+  !       q(3)*(epsil(3,1)*q(1)+epsil(3,2)*q(2)+epsil(3,3)*q(3)))
   !
   ! ---- cavity couplings \lambda ----
   ang2bohr = 1.0_DP/BOHR_RADIUS_ANGS
@@ -100,8 +182,11 @@ subroutine build_polaritons( &
         enddo; enddo
      enddo
   enddo
+  !
   IX = X
-  do al=1,ncav; IX(al,al)=IX(al,al)+1.0_DP; enddo
+  do al=1,ncav
+    IX(al,al)=IX(al,al) + 1.0_DP
+ enddo
   call inv_spd(IX, ncav, info)   ! (I+X)^{-1} (SPD expected)
   WRITE(6, *) "DEBUG-YZ: X = ", X
   WRITE(6, *) "DEBUG-YZ: IX = ", IX
@@ -312,7 +397,7 @@ subroutine build_twisted_polaritons( &
   real(DP), intent(in) :: omega_in(ncav)                        ! photon freq (user units)
   character(len=*), intent(in) :: omega_units                   ! 'Ry','THz','cm-1','meV','eV'
   real(DP), intent(in) :: polvec(3,ncav)                        ! unit polarization vectors
-  real(DP), intent(in) :: lambda_in(ncav)                       ! optional direct λ (Gaussian a.u.), <=0 -> build from Vmode
+  real(DP), intent(in) :: lambda_in(ncav)                       ! optional direct lambda (Gaussian a.u.), <=0 -> build from Vmode
   real(DP), intent(in) :: vmode_ang3(ncav)                      ! effective mode volumes [Å^3] (optional)
   real(DP), intent(in) :: eps_ext                               ! background dielectric of cavity
   integer, intent(out) :: nout

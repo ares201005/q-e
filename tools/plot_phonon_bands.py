@@ -1,6 +1,3 @@
-#!/usr/bin/env python3
-# plot_phonon_bands.py
-
 import re
 import argparse
 import numpy as np
@@ -11,12 +8,12 @@ import matplotlib.pyplot as plt
 plt.rcParams.update({
     "text.usetex": True,
     "font.family": "serif",
-    "font.serif": ["Times New Roman"],
+    #"font.serif": ["Times New Roman"],
     "font.size": 20,
     "axes.labelsize": 20,
     "xtick.labelsize": 16,
     "ytick.labelsize": 16,
-    "legend.fontsize": 16,
+    "legend.fontsize": 20,
     "axes.titlesize": 20
 })
 

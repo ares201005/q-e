@@ -7,6 +7,8 @@ from typing import List, Tuple, Optional
 import numpy as np
 import matplotlib.pyplot as plt
 
+
+# Enable LaTeX for matplotlib
 plt.rcParams.update({
     "text.usetex": True,
     "font.family": "serif",
