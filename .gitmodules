@@ -6,7 +6,7 @@
 	url = https://github.com/pietrodelugas/fox.git
 [submodule "external/wannier90"]
 	path = external/wannier90
-	url = https://github.com/ares201005/wannier90.git
+	url = https://github.com/wannier-developers/wannier90.git
 [submodule "external/mbd"]
 	path = external/mbd
 	url = https://github.com/libmbd/libmbd.git
