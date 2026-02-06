@@ -13,7 +13,7 @@ cmake_minimum_required(VERSION 3.20 FATAL_ERROR)
 set(CMAKE_POLICY_DEFAULT_CMP0048 NEW)
 
 project(qe
-    VERSION 7.4
+    VERSION 7.5
     DESCRIPTION "ESPRESSO: opEn-Source Package for Research in Electronic Structure, Simulation, and Optimization"
     LANGUAGES Fortran C)
 
@@ -37,6 +37,11 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${qe_BINARY_DIR}/bin
 set(CMAKE_MODULE_PATH "${CMAKE_CURRENT_SOURCE_DIR}/cmake" ${CMAKE_MODULE_PATH})
 include_directories("${CMAKE_CURRENT_SOURCE_DIR}/include")
 include(cmake/qeHelpers.cmake)
+
+# add the automatically determined parts of the RPATH
+# which point to directories outside the build tree to the install RPATH
+set(CMAKE_INSTALL_RPATH_USE_LINK_PATH TRUE)
+include(AddRPATH)
 
 ###########################################################
 # Build Type
@@ -303,6 +308,7 @@ qe_install_targets(qe_openmp_fortran)
 if(QE_ENABLE_OPENMP)
     find_package(OpenMP REQUIRED Fortran)
     target_link_libraries(qe_openmp_fortran INTERFACE OpenMP::OpenMP_Fortran)
+    AddRPATH("OpenMP" ${OpenMP_Fortran_LIBRARIES})
 endif(QE_ENABLE_OPENMP)
 if(QE_ENABLE_OFFLOAD)
     target_compile_definitions(qe_openmp_fortran INTERFACE "$<$<COMPILE_LANGUAGE:Fortran>:__OPENMP_GPU>")
@@ -575,10 +581,10 @@ qe_install_targets(qe_external_libxc)
 if(QE_ENABLE_LIBXC)
     target_compile_definitions(qe_external_libxc INTERFACE "__LIBXC")
 
-    find_package(Libxc 5.1.2 COMPONENTS Fortran)
+    find_package(Libxc COMPONENTS Fortran)
     if (NOT Libxc_FOUND)
         message(STATUS "Libxc searching failed in CMake Module mode, trying Config mode")
-        find_package(Libxc 5.1.2 COMPONENTS Fortran CONFIG)
+        find_package(Libxc COMPONENTS Fortran CONFIG)
     endif()
 
     if(${Libxc_FOUND})

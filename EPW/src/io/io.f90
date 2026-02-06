@@ -822,7 +822,7 @@
     !!
     CHARACTER(LEN = 256) :: tempfile
     !!
-    CHARACTER(LEN = 3), ALLOCATABLE :: atm(:)
+    CHARACTER(LEN = 6), ALLOCATABLE :: atm(:)
     !!
     INTEGER :: ios
     !!
@@ -2321,9 +2321,9 @@
     !!
     LOGICAL :: is_xml_file
     !! Is the file XML
-    CHARACTER(LEN = 3), ALLOCATABLE :: atm(:)
+    CHARACTER(LEN = 6), ALLOCATABLE :: atm(:)
     !! dummy variable for atom types when xml is used
-    CHARACTER(LEN = 3) :: atm_
+    CHARACTER(LEN = 6) :: atm_
     !! dummy variable for atom types when xml is not used
     CHARACTER(LEN = 4) :: filelab
     !!

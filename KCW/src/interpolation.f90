@@ -312,7 +312,7 @@ CONTAINS
     USE cell_base,            ONLY : alat, bg
     USE constants,            ONLY : BOHR_RADIUS_ANGS
     USE control_kcw,          ONLY : seedname, have_empty, num_wann_occ, num_wann_emp, &
-                                     centers, use_ws_distance
+                                     centers, use_ws_distance, l_unique_manifold
     USE io_global,            ONLY : ionode_id
     USE mp,                   ONLY : mp_bcast
     USE mp_global,            ONLY : intra_image_comm
@@ -331,53 +331,59 @@ CONTAINS
     IF ( ionode ) THEN
       !
       filename = trim(seedname)//'_centres.xyz'
-      nlines = num_wann_occ
+      if ( l_unique_manifold ) then
+        nlines = num_wann_occ + num_wann_emp
+      else
+        nlines = num_wann_occ
+      end if
       !
 50    INQUIRE( file=filename, exist=exst )
       !
       IF ( .not. exst .and. .not. check_emp ) THEN 
         CALL infomsg('read_wannier_centers','WARNING: centres.xyz NOT FOUND, disabling WS distance')
         use_ws_distance = .false.
-        RETURN
       ENDIF
       !
       IF ( .not. exst .and. check_emp ) THEN 
         CALL infomsg('read_wannier_centers','WARNING: emp_centres.xyz NOT FOUND, disabling WS distance')
         use_ws_distance = .false.
-        RETURN
       ENDIF
       !
       !
-      OPEN( 100, file=filename, form='formatted', status='old' )
-      !
-      READ( 100, *, end=10, err=20 )    ! skip 1st line
-      READ( 100, *, end=10, err=20 )    ! skip 2nd line
-      !
-      DO n = 1, nlines
+      IF (use_ws_distance) THEN
         !
-        READ( 100, '(a256)', end=10, err=20 ) input_line
+        OPEN( 100, file=filename, form='formatted', status='old' )
         !
-        IF ( input_line(1:1) .ne. 'X' ) CALL errore( 'read_wannier_centers', &
-                'X must precede each Wannier center line', 1 )
+        READ( 100, *, end=10, err=20 )    ! skip 1st line
+        READ( 100, *, end=10, err=20 )    ! skip 2nd line
         !
-        line = n
-        IF ( check_emp ) line = n + num_wann_occ
-        READ( input_line(2:), *, end=10, err=20 ) centers(:,line)
+        DO n = 1, nlines
+          !
+          READ( 100, '(a256)', end=10, err=20 ) input_line
+          !
+          IF ( input_line(1:1) .ne. 'X' ) CALL errore( 'read_wannier_centers', &
+                  'X must precede each Wannier center line', 1 )
+          !
+          line = n
+          IF ( check_emp ) line = n + num_wann_occ
+          READ( input_line(2:), *, end=10, err=20 ) centers(:,line)
+          !
+        ENDDO
         !
-      ENDDO
-      !
-      READ( 100, * ) input_line
-      IF ( input_line(1:1) == 'X' ) CALL errore( 'read_wannier_centers', &
-              'Missing some center! Check num_wann', 1 )
-      !
-      CLOSE( 100 )
-      !
-      IF ( have_empty .and. .not. check_emp ) THEN
+        READ( 100, * ) input_line
+        IF ( input_line(1:1) == 'X' ) CALL errore( 'read_wannier_centers', &
+                'Missing some center! Check num_wann', 1 )
         !
-        filename = trim(seedname)//'_emp_centres.xyz'
-        nlines = num_wann_emp
-        check_emp = .TRUE.
-        GO TO 50
+        CLOSE( 100 )
+        !
+        IF ( have_empty .and. .not. check_emp .and. .not. l_unique_manifold) THEN
+          !
+          filename = trim(seedname)//'_emp_centres.xyz'
+          nlines = num_wann_emp
+          check_emp = .TRUE.
+          GO TO 50
+          !
+        ENDIF
         !
       ENDIF
       !      
@@ -385,6 +391,7 @@ CONTAINS
     !
     centers = centers / ( alat * BOHR_RADIUS_ANGS )     ! alat always in BOHR ??? (TO BE CHECKED)
     call mp_bcast ( centers, ionode_id, intra_image_comm ) 
+    call mp_bcast ( use_ws_distance, ionode_id, intra_image_comm ) 
     !
     DO n = 1, num_wann_occ+num_wann_emp
       !

@@ -127,7 +127,6 @@ SUBROUTINE lr_calc_dens( evc1, response_calc )
      ! If a double grid is used, interpolate onto the fine grid
      !
      IF ( doublegrid ) THEN
-        print *, 'doublegrid', doublegrid
         CALL fft_interpolate(dffts, rho_1(:,1), dfftp, rho_1(:,1))
      ENDIF
      !
@@ -521,7 +520,11 @@ CONTAINS
           !
           ! End of real space stuff
           !
-          IF (lr_exx) CALL lr_exx_kernel_int ( evc1(:,:,1), ibnd, nbnd, 1 )
+          IF (lr_exx) THEN
+          !$acc update host(evc1,psic)
+          CALL lr_exx_kernel_int ( evc1(:,:,1), ibnd, nbnd, 1 )
+          !$acc update device(evc1,psic)
+          ENDIF
           !
        ENDIF
        !

@@ -1,16 +1,26 @@
-Fixed in development version:
-  * Problem with too short variable holding tag name when reading UPF files,
-    occurring only for some fully-relativistic pseudopotentials
-  * Warning on poor testing of Berry Phase calculation removed, thanks to
-    accurate testing performed by Riccardo Dal Molin and Antimo Marrazzo.
-  * Symmetrization glitches on many processors (reported by Yunqi Shao)
-  * Crash for noncolinear PAW case on many processors (reported by I. Timrov)
-  * The HP code for the magnetic noncollinear case had a bug
-    when symmetry was used (some symmetry arrays were not re-initialized
-    when perturbing Hubbard atoms) and the magnetization direction flip was 
-    missing in the Hubbard term (for the second Sternheimer equation) (fixed by L. Binci)
+Fixed in 7.5.1 version:
+  * Calculation of Raman coefficients with second-order response was broken
+    since v.7.4.1
+  * Bug in ELF normalization for nspin=1 (courtesy Nicolas F. Barrera)
+  * Phonon bug for GPU + 1 k-point + finite wave-vector (courtesy A. Dal Corso)
 
-New in development version:
+Incompatible changes in 7.5.1 version:
+  * Removed the option to compile PW with the pre-processor flag
+    __SPIN_BALANCE (T. Thonhauser)
+
+New in 7.5.1 version:
+  * vdW-DF3-mc, van der Waals density functional for molecular crystals
+    [T. Jenkins, K. Berland, and T. Thonhauser, Phys. Rev. B 112, 235121 (2025)]
+
+Incompatible changes in 7.5 version:
+  * The Simpson routine for radial integration has been modified for the case
+    of an even number of points in the integration grid. The current version 
+    is more accurate than the previous one, but may yield slightly different
+    numerical results.
+
+New in 7.5 version:
+  * New Orbital Resolved DFT+U method -E. Macke, I. Timrov 
+    (see Macke et al. JCTC  2024 20 (11), 4824-4843) 
   * Interface between Wannier90 and DFT+U to use Wannier functions as
     Hubbard projectors (I. Timrov, A. Carta, C. Ederer et al., arXiv:2411.03937)
   * Extension of pp.x to visualize Hubbard projectors of DFT+U (I. Timrov)
@@ -22,6 +32,18 @@ New in development version:
     (Phys. Rev. B 110, 094306,https://doi.org/10.1103/PhysRevB.110.094306).
   * Implemented NVT dynamics with Nose-Hoover thermostats with Verlet and velocity-Verlet engines
   * Implemented NPT dynamics with Nose-Hoover thermostats, Parrinello-Rahman and Wentzcovich barostats and Beeman MD engine.  
+
+Fixed in 7.5 version:
+  * Problem with too short variable holding tag name when reading UPF files,
+    occurring only for some fully-relativistic pseudopotentials
+  * Warning on poor testing of Berry Phase calculation removed, thanks to
+    accurate testing performed by Riccardo Dal Molin and Antimo Marrazzo.
+  * Symmetrization glitches on many processors (reported by Yunqi Shao)
+  * Crash for noncolinear PAW case on many processors (reported by I. Timrov)
+  * The HP code for the magnetic noncollinear case had a bug
+    when symmetry was used (some symmetry arrays were not re-initialized
+    when perturbing Hubbard atoms) and the magnetization direction flip was 
+    missing in the Hubbard term (for the second Sternheimer equation) (fixed by L. Binci)
 
 Fixed in 7.4.1 version:
   * Error in qexml_init might cause EPW to fail in some cases

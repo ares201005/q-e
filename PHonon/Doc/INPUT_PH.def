@@ -202,6 +202,17 @@ input_description -distribution {Quantum ESPRESSO} -package PHonon -program ph.x
             }
         }
 
+        var lmultipole -type LOGICAL {
+            default { .false. } 
+            info {
+                  If .true. prints the induced density and potentials in fildrho and fildvscf. 
+                  To extract multipoles and the finite-q dielectric function, multiple finite-q 
+                  calculations need to be performed (see test-suite/ph_multipole, 
+                  where multipole.py manages the flow of the calculations as described in test-suite/run-ph.sh). 
+                  N.B.:  works only for 3d systems.
+            }
+	}
+
         group {
             label { Optional variables for Raman: }
             
